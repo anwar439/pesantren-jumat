@@ -1,0 +1,6 @@
+{
+  "name": "Mutaba'ah Digital SMP Islam Al Azhar 9 Bekasi",
+  "description": "Arsitektur database, sistem poin gamifikasi, alur rekap PDF, integrasi AI, dan prototipe evaluasi untuk Mutaba'ah SMP Islam Al Azhar 9 Bekasi.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

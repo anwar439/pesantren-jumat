@@ -1,0 +1,101 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --font-display: "Space Grotesk", sans-serif;
+  --font-mono: "JetBrains Mono", monospace;
+  
+  --color-bento-primary: #0F82C5;
+  --color-bento-secondary: #00A859;
+  --color-bento-accent: #F59E0B;
+  --color-bento-bg: #F1F5F9;
+  --color-bento-card: #FFFFFF;
+}
+
+/* Custom bento styling helper classes */
+.bento-card {
+  background-color: #FFFFFF;
+  border-radius: 1rem; /* rounded-2xl */
+  padding: 1.25rem;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -2px rgba(0, 0, 0, 0.05);
+  border: 1px solid #E2E8F0;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.bento-card:hover {
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.08), 0 4px 6px -4px rgba(0, 0, 0, 0.08);
+  border-color: #CBD5E1;
+}
+
+.bento-header-card {
+  background: linear-gradient(135deg, #0F82C5 0%, #005B94 100%);
+  color: #FFFFFF;
+  border: none;
+}
+
+.bento-tag {
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 0.25rem 0.75rem;
+  border-radius: 9999px;
+  background-color: #F1F5F9;
+  color: #475569;
+  width: fit-content;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  letter-spacing: 0.025em;
+  text-transform: uppercase;
+}
+
+.bento-label {
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: #64748B;
+  letter-spacing: 0.05em;
+  margin-bottom: 0.5rem;
+  display: block;
+}
+
+.bento-point-value {
+  font-family: "Space Grotesk", sans-serif;
+  font-size: 2rem;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.bento-ai-box {
+  background-color: #F0F9FF;
+  border: 1px dashed #0F82C5;
+  padding: 1rem;
+  border-radius: 0.75rem;
+  font-size: 0.8125rem;
+  line-height: 1.6;
+  font-style: italic;
+  color: #0B4F78;
+}
+
+.bento-prayer-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.bento-prayer-item {
+  text-align: center;
+  padding: 0.75rem 0.5rem;
+  border-radius: 0.75rem;
+  background-color: #F8FAFC;
+  border: 1px solid #E2E8F0;
+  transition: all 0.15s ease;
+}
+
+.bento-prayer-active {
+  background-color: #E0F2FE;
+  border-color: #0F82C5;
+  color: #0B4F78;
+  font-weight: 700;
+}
