@@ -8,6 +8,25 @@ dotenv.config();
 const app = express();
 const PORT = 3000;
 
+// Middleware to strip subpath prefix (/mutabaah) if present for cPanel deployment
+app.use((req, res, next) => {
+  // If request is exactly /mutabaah (without trailing slash), redirect to /mutabaah/
+  // This ensures the browser resolves relative asset paths (like ./assets/...) correctly!
+  const cleanPath = req.path;
+  if (cleanPath === "/mutabaah") {
+    const query = req.url.includes("?") ? req.url.substring(req.url.indexOf("?")) : "";
+    return res.redirect(301, "/mutabaah/" + query);
+  }
+
+  if (req.url.startsWith("/mutabaah")) {
+    req.url = req.url.substring("/mutabaah".length);
+    if (!req.url.startsWith("/")) {
+      req.url = "/" + req.url;
+    }
+  }
+  next();
+});
+
 app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ limit: "50mb", extended: true }));
 
@@ -335,7 +354,7 @@ async function startServer() {
     });
     app.use(vite.middlewares);
   } else {
-    const distPath = path.join(process.cwd(), "dist");
+    const distPath = __dirname;
     app.use(express.static(distPath));
     app.get('*', (req, res) => {
       res.sendFile(path.join(distPath, 'index.html'));

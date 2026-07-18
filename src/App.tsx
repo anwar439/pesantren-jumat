@@ -171,6 +171,12 @@ function compressImage(file: File, maxWidth = 800, maxHeight = 800, quality = 0.
   });
 }
 
+// Helper function to resolve dynamic API URLs based on subdirectory (e.g. /mutabaah)
+const getApiUrl = (endpoint: string) => {
+  const isProdSubpath = window.location.pathname.includes("/mutabaah");
+  return isProdSubpath ? `/mutabaah${endpoint}` : endpoint;
+};
+
 export default function App() {
   // Modes: "operational" (to operate the app) or "blueprint" (to view database schemas & developer docs)
   const [appMode, setAppMode] = useState<"operational" | "blueprint">("operational");
@@ -1274,7 +1280,7 @@ export default function App() {
         currentStreakDays: targetStudent?.streak || 0
       };
 
-      const response = await fetch("/api/mutabaah/submit", {
+      const response = await fetch(getApiUrl("/api/mutabaah/submit"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload)
@@ -1470,7 +1476,7 @@ export default function App() {
     };
 
     try {
-      const response = await fetch("/api/gemini/evaluate", {
+      const response = await fetch(getApiUrl("/api/gemini/evaluate"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
