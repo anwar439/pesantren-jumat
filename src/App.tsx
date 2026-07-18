@@ -37,7 +37,14 @@ import {
   Lock,
   FileSpreadsheet,
   Trash2,
-  Settings
+  Settings,
+  Save,
+  School,
+  Filter,
+  CalendarDays,
+  CalendarRange,
+  ChevronUp,
+  RefreshCw
 } from "lucide-react";
 import { INITIAL_STUDENTS, INITIAL_TEACHERS, INITIAL_PARENTS } from "./initialData";
 import { SmpAlAzhar9Logo, YayasanMuhajirienLogo } from "./components/BrandLogos";
@@ -83,6 +90,8 @@ interface LogEntry {
   details: string[];
   parentApproved: boolean;
   teacherApproved: boolean;
+  rejectedByTeacher?: boolean;
+  rejectionReason?: string;
   shalatWajib?: { subuh: any; zuhur: any; ashar: any; maghrib: any; isya: any; haidh?: boolean };
   shalatSunnah?: { tahajud: boolean; dhuha: boolean; qabliyahSubuh: boolean; qabliyahDzuhur: boolean; badiyahDzuhur: boolean; badiyahMaghrib: boolean; badiyahIsya: boolean; haidh?: boolean };
   tilawah?: { surah: string; customSurah?: string; ayat: string; juz: string };
@@ -181,6 +190,48 @@ export default function App() {
   const [customYayasanLogo, setCustomYayasanLogo] = useState<string | null>(() => localStorage.getItem("customYayasanLogo"));
 
   // ----------------------------------------------------
+  // SCHOOL PROFILE STATES (Admin overrides)
+  // ----------------------------------------------------
+  const [schoolProfile, setSchoolProfile] = useState(() => ({
+    name: localStorage.getItem("school_profile_name") || "SMP Islam Al Azhar 9 Bekasi",
+    principal: localStorage.getItem("school_profile_principal") || "H. Amril, S.Ag, M.Pd",
+    principalNip: localStorage.getItem("school_profile_principalNip") || "1971030519980310",
+    address: localStorage.getItem("school_profile_address") || "Jl. Kemang Pratama Raya, Bekasi Barat",
+    phone: localStorage.getItem("school_profile_phone") || "021-82410000",
+    npsn: localStorage.getItem("school_profile_npsn") || "20220301",
+    yayasan: localStorage.getItem("school_profile_yayasan") || "YAYASAN WAQAF AL MUHAJIRIEN / YPI AL AZHAR"
+  }));
+
+  // ----------------------------------------------------
+  // LEADERBOARD / PERINGKAT STATES
+  // ----------------------------------------------------
+  const [rankClassFilter, setRankClassFilter] = useState<string>("Semua Kelas");
+  const [rankTimeFilter, setRankTimeFilter] = useState<"semua" | "harian" | "pekanan" | "bulanan" | "custom">("pekanan");
+  const [rankStartDate, setRankStartDate] = useState<string>(() => {
+    const d = new Date();
+    return d.toISOString().split("T")[0];
+  });
+  const [rankEndDate, setRankEndDate] = useState<string>(() => {
+    const d = new Date();
+    return d.toISOString().split("T")[0];
+  });
+  const [showAllRanked, setShowAllRanked] = useState<boolean>(false);
+
+  // ----------------------------------------------------
+  // STUDENT MASTER LIST SORTING & FILTERING STATES
+  // ----------------------------------------------------
+  const [studentSortBy, setStudentSortBy] = useState<"total" | "harian" | "pekanan" | "bulanan" | "custom">("total");
+  const [studentSortStartDate, setStudentSortStartDate] = useState<string>(() => {
+    const d = new Date();
+    return d.toISOString().split("T")[0];
+  });
+  const [studentSortEndDate, setStudentSortEndDate] = useState<string>(() => {
+    const d = new Date();
+    return d.toISOString().split("T")[0];
+  });
+  const [studentSortType, setStudentSortType] = useState<"verified" | "all">("all");
+
+  // ----------------------------------------------------
   // DYNAMIC MASTER DATABASES (React State)
   // ----------------------------------------------------
   const [students, setStudents] = useState<Student[]>(INITIAL_STUDENTS);
@@ -192,10 +243,10 @@ export default function App() {
   const [historyLogs, setHistoryLogs] = useState<LogEntry[]>([
     {
       id: "LOG-001",
-      studentId: "STD-001",
+      studentId: "STD-003",
       studentName: "Ahmad Fauzan",
       date: "2026-07-01",
-      pointsEarned: 115,
+      pointsEarned: 104,
       streakDays: 5,
       parentApproved: false,
       teacherApproved: false,
@@ -205,14 +256,14 @@ export default function App() {
       hafalan: { surah: "An-Nazi'at", ayat: "1-5", juz: "30", tipe: "ziyadah" },
       polaTidur: { sebelum22: true, bangun05: true },
       birrulWalidain: ["Merapihkan tempat tidur sendiri", "Membantu memasak atau menyiapkan makanan"],
-      details: ["Shalat Wajib: 5/5 waktu (+50 Poin)", "Shalat Dhuha (+15 Poin)", "Shalat Tahajud (+20 Poin)", "Tilawah Al-Qur'an: 4 halaman (+40 Poin)", "Streak Bonus: Day 5 (+25 Poin)"]
+      details: ["Shalat Wajib: 5 Berjama'ah (+35 Poin)", "Shalat Dhuha (+5 Poin)", "Shalat Tahajud (+15 Poin)", "Shalat Rawatib (+15 Poin)", "Tilawah Al-Qur'an (+10 Poin)", "Hafalan Al-Qur'an (+10 Poin)"]
     },
     {
       id: "LOG-002",
       studentId: "STD-003",
       studentName: "Siti Humaira",
       date: "2026-07-01",
-      pointsEarned: 125,
+      pointsEarned: 104,
       streakDays: 12,
       parentApproved: true,
       teacherApproved: false,
@@ -222,7 +273,7 @@ export default function App() {
       hafalan: { surah: "An-Naba'", ayat: "1-20", juz: "30", tipe: "murojaah" },
       polaTidur: { sebelum22: true, bangun05: true },
       birrulWalidain: ["Membantu membersihkan rumah", "Mencuci piring"],
-      details: ["Shalat Wajib: 5/5 waktu (+50 Poin)", "Shalat Dhuha (+15 Poin)", "Shalat Tahajud (+20 Poin)", "Tilawah Al-Qur'an: 5 halaman (+40 Poin)", "Streak Bonus: Day 12 (+50 Poin)"]
+      details: ["Shalat Wajib: 5 Berjama'ah (+35 Poin)", "Shalat Dhuha (+5 Poin)", "Shalat Tahajud (+15 Poin)", "Shalat Rawatib (+15 Poin)", "Tilawah Al-Qur'an (+10 Poin)", "Hafalan Al-Qur'an (+10 Poin)"]
     }
   ]);
 
@@ -242,6 +293,8 @@ export default function App() {
   const [selectedParentIds, setSelectedParentIds] = useState<string[]>([]);
   
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
+  const [rejectingLogId, setRejectingLogId] = useState<string | null>(null);
+  const [rejectionReasonInput, setRejectionReasonInput] = useState<string>("");
 
   // ----------------------------------------------------
   // DAILY CHECKLIST INPUT STATES
@@ -268,8 +321,11 @@ export default function App() {
   const [tilawah, setTilawah] = useState({
     surah: "Tidak membaca",
     customSurah: "",
+    customSurahEnd: "",
     ayat: "",
-    juz: "30"
+    juz: "30",
+    surahEnd: "Tidak membaca",
+    juzEnd: "30"
   });
   const [infaq, setInfaq] = useState<{
     hasInfaq: boolean;
@@ -300,7 +356,11 @@ export default function App() {
     "Membantu memasak atau menyiapkan makanan"
   ]);
   const [otherBirrul, setOtherBirrul] = useState<string>("");
-  const [tanggalMutabaah, setTanggalMutabaah] = useState<string>(new Date().toISOString().split("T")[0]);
+  const [tanggalMutabaah, setTanggalMutabaah] = useState<string>(() => {
+    const d = new Date();
+    d.setDate(d.getDate() - 1);
+    return d.toISOString().split("T")[0];
+  });
   const [currentTime, setCurrentTime] = useState<Date>(new Date());
 
   React.useEffect(() => {
@@ -362,6 +422,45 @@ export default function App() {
   }, [currentUser, appMode]);
 
   // ----------------------------------------------------
+  // SCHOOL PROFILE HANDLERS
+  // ----------------------------------------------------
+  const [profileForm, setProfileForm] = useState(() => ({
+    name: schoolProfile.name,
+    principal: schoolProfile.principal,
+    principalNip: schoolProfile.principalNip,
+    address: schoolProfile.address,
+    phone: schoolProfile.phone,
+    npsn: schoolProfile.npsn,
+    yayasan: schoolProfile.yayasan
+  }));
+
+  // Synchronize profileForm if schoolProfile updates (e.g. initial loads)
+  React.useEffect(() => {
+    setProfileForm({
+      name: schoolProfile.name,
+      principal: schoolProfile.principal,
+      principalNip: schoolProfile.principalNip,
+      address: schoolProfile.address,
+      phone: schoolProfile.phone,
+      npsn: schoolProfile.npsn,
+      yayasan: schoolProfile.yayasan
+    });
+  }, [schoolProfile]);
+
+  const handleSaveSchoolProfile = (e: React.FormEvent) => {
+    e.preventDefault();
+    setSchoolProfile(profileForm);
+    localStorage.setItem("school_profile_name", profileForm.name);
+    localStorage.setItem("school_profile_principal", profileForm.principal);
+    localStorage.setItem("school_profile_principalNip", profileForm.principalNip);
+    localStorage.setItem("school_profile_address", profileForm.address);
+    localStorage.setItem("school_profile_phone", profileForm.phone);
+    localStorage.setItem("school_profile_npsn", profileForm.npsn);
+    localStorage.setItem("school_profile_yayasan", profileForm.yayasan);
+    triggerToast("Profil identitas sekolah berhasil diperbarui secara manual!");
+  };
+
+  // ----------------------------------------------------
   // SCHOOL & FOUNDATION LOGO HANDLERS
   // ----------------------------------------------------
   const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>, type: "smp" | "yayasan") => {
@@ -419,6 +518,16 @@ export default function App() {
   const [loginCreds, setLoginCreds] = useState<string>("");
   const [loginPassword, setLoginPassword] = useState<string>("");
   const [loginError, setLoginError] = useState<string | null>(null);
+  const [rememberMe, setRememberMe] = useState<boolean>(() => {
+    return localStorage.getItem("remember_me") === "true";
+  });
+
+  React.useEffect(() => {
+    if (localStorage.getItem("remember_me") === "true") {
+      setLoginCreds(localStorage.getItem(`login_creds_${loginRole}`) || "");
+      setLoginPassword(localStorage.getItem(`login_pass_${loginRole}`) || "");
+    }
+  }, [loginRole]);
 
   // ----------------------------------------------------
   // BATCH EXCEL/SPREADSHEET IMPORT STATES
@@ -497,7 +606,7 @@ export default function App() {
 
   const handleExecuteImport = () => {
     if (importParsedData.length === 0) {
-      alert("Tidak ada data valid yang terdeteksi.");
+      triggerToast("Tidak ada data valid yang terdeteksi.");
       return;
     }
 
@@ -658,6 +767,20 @@ export default function App() {
       return;
     }
 
+    const handleLoginSuccess = () => {
+      if (rememberMe) {
+        localStorage.setItem("remember_me", "true");
+        localStorage.setItem(`login_creds_${loginRole}`, username);
+        localStorage.setItem(`login_pass_${loginRole}`, password);
+      } else {
+        localStorage.setItem("remember_me", "false");
+        localStorage.removeItem(`login_creds_${loginRole}`);
+        localStorage.removeItem(`login_pass_${loginRole}`);
+        setLoginCreds("");
+        setLoginPassword("");
+      }
+    };
+
     if (loginRole === "admin") {
       let matchedAdmin = null;
       if (username.toLowerCase() === "kepsek01" && password === "kepsek123456") {
@@ -676,8 +799,7 @@ export default function App() {
           id: matchedAdmin.id,
           name: matchedAdmin.name
         });
-        setLoginCreds("");
-        setLoginPassword("");
+        handleLoginSuccess();
         triggerToast(`Login berhasil sebagai ${matchedAdmin.name}!`);
         setOpTab("dashboard");
       } else {
@@ -703,8 +825,7 @@ export default function App() {
             nisnOrNip: match.nisn
           });
           setSelectedStudentId(match.id);
-          setLoginCreds("");
-          setLoginPassword("");
+          handleLoginSuccess();
           triggerToast(`Selamat datang, ${match.name}!`);
           setOpTab("daily");
         } else {
@@ -750,8 +871,7 @@ export default function App() {
             nisnOrNip: matchStudent.nisn
           });
           setReportStudentId(matchStudent.id);
-          setLoginCreds("");
-          setLoginPassword("");
+          handleLoginSuccess();
           triggerToast(`Selamat datang Wali Murid dari ${matchStudent.name}!`);
           setOpTab("reports");
         } else {
@@ -775,8 +895,7 @@ export default function App() {
             name: match.name,
             nisnOrNip: match.nip
           });
-          setLoginCreds("");
-          setLoginPassword("");
+          handleLoginSuccess();
           triggerToast(`Selamat datang Ustadz/Ustadzah, ${match.name}!`);
           setOpTab("dashboard");
         } else {
@@ -836,7 +955,7 @@ export default function App() {
   const handleAddStudent = (e: React.FormEvent) => {
     e.preventDefault();
     if (!formStudent.name || !formStudent.nisn) {
-      alert("Harap lengkapi semua field siswa.");
+      triggerToast("Harap lengkapi semua field siswa.");
       return;
     }
     
@@ -874,7 +993,7 @@ export default function App() {
   const handleAddTeacher = (e: React.FormEvent) => {
     e.preventDefault();
     if (!formTeacher.name || !formTeacher.nip) {
-      alert("Harap lengkapi nama guru dan NIP.");
+      triggerToast("Harap lengkapi nama guru dan NIP.");
       return;
     }
     const newId = `TCH-00${teachers.length + 1}`;
@@ -893,7 +1012,7 @@ export default function App() {
   const handleAddParent = (e: React.FormEvent) => {
     e.preventDefault();
     if (!formParent.name || !formParent.phone) {
-      alert("Harap lengkapi nama orang tua dan No. HP.");
+      triggerToast("Harap lengkapi nama orang tua dan No. HP.");
       return;
     }
     const newId = `PRT-00${parents.length + 1}`;
@@ -955,6 +1074,27 @@ export default function App() {
     if (confirm(`Apakah Anda yakin ingin menghapus secara masal ${selectedStudentIds.length} data siswa terpilih?`)) {
       setStudents(students.filter(s => !selectedStudentIds.includes(s.id)));
       triggerToast(`Berhasil menghapus masal ${selectedStudentIds.length} data siswa.`);
+      setSelectedStudentIds([]);
+    }
+  };
+
+  const handleBulkResetPointsAll = () => {
+    if (confirm("Apakah Anda yakin ingin mereset seluruh poin siswa di database menjadi 0 secara masal?")) {
+      setStudents(prev => prev.map(s => ({ ...s, points: 0 })));
+      triggerToast("Seluruh poin siswa berhasil direset menjadi 0.");
+    }
+  };
+
+  const handleBulkResetPointsSelected = () => {
+    if (selectedStudentIds.length === 0) return;
+    if (confirm(`Apakah Anda yakin ingin mereset poin dari ${selectedStudentIds.length} siswa terpilih menjadi 0?`)) {
+      setStudents(prev => prev.map(s => {
+        if (selectedStudentIds.includes(s.id)) {
+          return { ...s, points: 0 };
+        }
+        return s;
+      }));
+      triggerToast(`Poin ${selectedStudentIds.length} siswa terpilih berhasil direset menjadi 0.`);
       setSelectedStudentIds([]);
     }
   };
@@ -1071,6 +1211,21 @@ export default function App() {
   };
 
   const handleDailySubmit = async () => {
+    const todayStr = new Date().toISOString().split("T")[0];
+    if (tanggalMutabaah === todayStr) {
+      triggerToast("Laporan mutaba'ah untuk hari ini belum bisa diisi (baru bisa diisi besok pagi).");
+      return;
+    }
+
+    const activeStudentIdForCheck = currentUser?.role === "siswa" ? currentUser.id : selectedStudentId;
+    const hasAlreadySubmitted = historyLogs.some(
+      (log) => log.studentId === activeStudentIdForCheck && log.date === tanggalMutabaah && !log.rejectedByTeacher
+    );
+    if (hasAlreadySubmitted) {
+      triggerToast(`Laporan mutaba'ah untuk siswa ini pada tanggal ${tanggalMutabaah} sudah pernah dikirimkan sebelumnya.`);
+      return;
+    }
+
     setSubmitting(true);
     setSubmitResult(null);
     const targetStudent = students.find(s => s.id === selectedStudentId);
@@ -1089,9 +1244,17 @@ export default function App() {
         shalatWajib,
         shalatSunnah,
         tilawah: {
-          surah: tilawah.surah === "Lainnya (Ketik Manual)" ? tilawah.customSurah : tilawah.surah,
+          surah: (() => {
+            if (tilawah.surah === "Tidak membaca") return "Tidak membaca";
+            const startStr = tilawah.surah === "Lainnya (Ketik Manual)" ? tilawah.customSurah : tilawah.surah;
+            const endStr = tilawah.surahEnd === "Lainnya (Ketik Manual)" ? (tilawah.customSurahEnd || "") : (tilawah.surahEnd || tilawah.surah);
+            if (endStr && endStr !== "Tidak membaca" && endStr !== tilawah.surah) {
+              return `${startStr} s/d ${endStr}`;
+            }
+            return startStr;
+          })(),
           ayat: tilawah.ayat,
-          juz: parseInt(tilawah.juz) || 30
+          juz: (tilawah.juz === tilawah.juzEnd ? `${tilawah.juz}` : `${tilawah.juz} s/d ${tilawah.juzEnd}`) as any
         },
         hafalan: {
           surah: hafalan.surah === "Lainnya (Ketik Manual)" ? hafalan.customSurah : hafalan.surah,
@@ -1145,9 +1308,17 @@ export default function App() {
           shalatWajib: { ...shalatWajib },
           shalatSunnah: { ...shalatSunnah },
           tilawah: { 
-            surah: tilawah.surah === "Lainnya (Ketik Manual)" ? tilawah.customSurah : tilawah.surah, 
+            surah: (() => {
+              if (tilawah.surah === "Tidak membaca") return "Tidak membaca";
+              const startStr = tilawah.surah === "Lainnya (Ketik Manual)" ? tilawah.customSurah : tilawah.surah;
+              const endStr = tilawah.surahEnd === "Lainnya (Ketik Manual)" ? (tilawah.customSurahEnd || "") : (tilawah.surahEnd || tilawah.surah);
+              if (endStr && endStr !== "Tidak membaca" && endStr !== tilawah.surah) {
+                return `${startStr} s/d ${endStr}`;
+              }
+              return startStr;
+            })(), 
             ayat: tilawah.ayat, 
-            juz: tilawah.juz 
+            juz: tilawah.juz === tilawah.juzEnd ? `${tilawah.juz}` : `${tilawah.juz} s/d ${tilawah.juzEnd}` 
           },
           hafalan: { 
             surah: hafalan.surah === "Lainnya (Ketik Manual)" ? hafalan.customSurah : hafalan.surah, 
@@ -1159,7 +1330,7 @@ export default function App() {
           birrulWalidain: [...finalBirrul],
           infaq: { ...infaq }
         };
-        setHistoryLogs([newLog, ...historyLogs]);
+        setHistoryLogs(prev => [newLog, ...prev.filter(log => !(log.studentId === selectedStudentId && log.date === payload.date))]);
         triggerToast(`Mutaba'ah harian ${newLog.studentName} berhasil diproses oleh server!`);
 
         // Reset Infaq form after success
@@ -1173,7 +1344,7 @@ export default function App() {
       }
     } catch (err) {
       console.error(err);
-      alert("Gagal memanggil API server. Memakai simulasi offline.");
+      triggerToast("Gagal memanggil API server. Memakai simulasi offline.");
     } finally {
       setSubmitting(false);
     }
@@ -1202,12 +1373,46 @@ export default function App() {
         message = nextTeacherApproved 
           ? "Laporan Mutaba'ah siswa berhasil diverifikasi & disetujui oleh Wali Kelas!" 
           : "Verifikasi Wali Kelas berhasil dibatalkan!";
-        return { ...log, teacherApproved: nextTeacherApproved };
+        return { 
+          ...log, 
+          teacherApproved: nextTeacherApproved,
+          rejectedByTeacher: nextTeacherApproved ? false : log.rejectedByTeacher,
+          rejectionReason: nextTeacherApproved ? undefined : log.rejectionReason
+        };
       }
       return log;
     }));
     if (wasUpdated) {
       triggerToast(message);
+    }
+  };
+
+  const handleRejectByTeacher = (logId: string, reason: string) => {
+    let wasUpdated = false;
+    setHistoryLogs(prev => prev.map(log => {
+      if (log.id === logId) {
+        const oldFullyApproved = log.teacherApproved && log.parentApproved;
+        if (oldFullyApproved) {
+          setStudents(prevStudents => prevStudents.map(s => {
+            if (s.id === log.studentId) {
+              return { ...s, points: Math.max(0, s.points - log.pointsEarned) };
+            }
+            return s;
+          }));
+        }
+
+        wasUpdated = true;
+        return {
+          ...log,
+          teacherApproved: false,
+          rejectedByTeacher: true,
+          rejectionReason: reason || "Laporan ditolak oleh Wali Kelas karena data tidak sesuai / perlu diperbaiki."
+        };
+      }
+      return log;
+    }));
+    if (wasUpdated) {
+      triggerToast("Laporan Mutaba'ah siswa berhasil ditolak. Siswa sekarang dapat mengisi ulang.");
     }
   };
 
@@ -1420,6 +1625,95 @@ export default function App() {
     recapFilterVerifiedOnly
   );
 
+  const calculateLogPoints = (log: Partial<LogEntry>) => {
+    let fardhu = 0;
+    let sunnah = 0;
+    let rawatib = 0;
+    let tilawah = 0;
+    let hafalan = 0;
+    let tidur = 0;
+    let birrul = 0;
+    let infaq = 0;
+
+    // 1. Shalat Fardhu
+    if (log.shalatWajib) {
+      if (log.shalatWajib.haidh) {
+        fardhu = 25;
+      } else {
+        ["subuh", "zuhur", "ashar", "maghrib", "isya"].forEach(k => {
+          const val = (log.shalatWajib as any)?.[k];
+          if (val === "berjamaah" || val === true) {
+            fardhu += 7;
+          } else if (val === "munfarid") {
+            fardhu += 5;
+          }
+        });
+      }
+    }
+
+    // 2. Shalat Sunnah
+    if (log.shalatSunnah) {
+      if (log.shalatSunnah.haidh) {
+        sunnah = 10;
+      } else {
+        if (log.shalatSunnah.tahajud) sunnah += 15;
+        if (log.shalatSunnah.dhuha) sunnah += 5;
+
+        // Rawatib
+        let rCount = 0;
+        if (log.shalatSunnah.qabliyahSubuh) rCount++;
+        if (log.shalatSunnah.qabliyahDzuhur) rCount++;
+        if (log.shalatSunnah.badiyahDzuhur) rCount++;
+        if (log.shalatSunnah.badiyahMaghrib) rCount++;
+        if (log.shalatSunnah.badiyahIsya) rCount++;
+
+        rawatib = rCount * 3;
+      }
+    }
+
+    // 3. Tilawah
+    if (log.tilawah && log.tilawah.surah && log.tilawah.surah !== "Tidak membaca") {
+      tilawah = 10;
+    }
+
+    // 4. Hafalan/Tahfiz
+    if (log.hafalan && log.hafalan.surah && log.hafalan.surah !== "Tidak hafalan" && log.hafalan.tipe !== "tidak_hafalan") {
+      hafalan = 10;
+    }
+
+    // 5. Pola Tidur
+    if (log.polaTidur) {
+      if (log.polaTidur.sebelum22) tidur += 5;
+      if (log.polaTidur.bangun05) tidur += 5;
+    }
+
+    // 6. Birrul Walidain
+    if (log.birrulWalidain && Array.isArray(log.birrulWalidain)) {
+      const cleanAct = log.birrulWalidain.filter(a => a !== "Other" && a !== "Tidak ada");
+      birrul = cleanAct.length * 2;
+    }
+
+    // 7. Infaq
+    if (log.infaq && log.infaq.hasInfaq && log.infaq.amount) {
+      const amt = parseFloat(log.infaq.amount.toString());
+      if (!isNaN(amt) && amt > 0) {
+        infaq = Math.floor(amt / 1000);
+      }
+    }
+
+    return {
+      fardhu,
+      sunnah,
+      rawatib,
+      tilawah,
+      hafalan,
+      tidur,
+      birrul,
+      infaq,
+      total: fardhu + sunnah + rawatib + tilawah + hafalan + tidur + birrul + infaq
+    };
+  };
+
   const compileStats = (logs: LogEntry[]) => {
     let shalatWajibDone = 0;
     let shalatWajibTotal = 0;
@@ -1433,10 +1727,30 @@ export default function App() {
     let infaqTotalAmount = 0;
     let pointsTotal = 0;
 
+    let fardhuPointsTotal = 0;
+    let sunnahPointsTotal = 0;
+    let rawatibPointsTotal = 0;
+    let tilawahPointsTotal = 0;
+    let hafalanPointsTotal = 0;
+    let tidurPointsTotal = 0;
+    let birrulPointsTotal = 0;
+    let infaqPointsTotal = 0;
+
     logs.forEach(log => {
       pointsTotal += log.pointsEarned;
 
-      // Shalat Wajib
+      // New system points breakdown per log
+      const pts = calculateLogPoints(log);
+      fardhuPointsTotal += pts.fardhu;
+      sunnahPointsTotal += pts.sunnah;
+      rawatibPointsTotal += pts.rawatib;
+      tilawahPointsTotal += pts.tilawah;
+      hafalanPointsTotal += pts.hafalan;
+      tidurPointsTotal += pts.tidur;
+      birrulPointsTotal += pts.birrul;
+      infaqPointsTotal += pts.infaq;
+
+      // Shalat Wajib counts
       if (log.shalatWajib) {
         shalatWajibTotal += 5;
         if (log.shalatWajib.haidh) {
@@ -1451,7 +1765,7 @@ export default function App() {
         }
       }
 
-      // Shalat Sunnah
+      // Shalat Sunnah counts
       if (log.shalatSunnah) {
         if (log.shalatSunnah.haidh) {
           dhuhaCount += 1;
@@ -1505,6 +1819,14 @@ export default function App() {
       infaqCount,
       infaqTotalAmount,
       pointsTotal,
+      fardhuPointsTotal,
+      sunnahPointsTotal,
+      rawatibPointsTotal,
+      tilawahPointsTotal,
+      hafalanPointsTotal,
+      tidurPointsTotal,
+      birrulPointsTotal,
+      infaqPointsTotal,
       daysLogged: logs.length
     };
   };
@@ -1536,7 +1858,7 @@ export default function App() {
             <div>
               <div className="flex flex-wrap items-center gap-2">
                 <span className="bg-sky-800/80 text-amber-300 text-[10px] uppercase font-bold tracking-wider px-2.5 py-0.5 rounded-full border border-sky-700">
-                  SMP Islam Al Azhar 9 Bekasi
+                  {schoolProfile.name}
                 </span>
               </div>
               <h1 id="app-title" className="text-xl md:text-3xl font-display font-bold tracking-tight text-white mt-1.5">
@@ -1562,7 +1884,7 @@ export default function App() {
                 <YayasanMuhajirienLogo className="w-12 h-12 drop-shadow-md" customSrc={customYayasanLogo} />
               </div>
               <h2 className="font-display font-bold text-lg leading-tight">Portal Akademik Al Azhar</h2>
-              <p className="text-sky-200/90 text-xs mt-1">SMP Islam Al Azhar 9 Bekasi</p>
+              <p className="text-sky-200/90 text-xs mt-1">{schoolProfile.name}</p>
             </div>
 
             <div className="p-6 md:p-8">
@@ -1580,8 +1902,13 @@ export default function App() {
                     onClick={() => {
                       setLoginRole(r.role as any);
                       setLoginError(null);
-                      setLoginCreds("");
-                      setLoginPassword("");
+                      if (localStorage.getItem("remember_me") === "true") {
+                        setLoginCreds(localStorage.getItem(`login_creds_${r.role}`) || "");
+                        setLoginPassword(localStorage.getItem(`login_pass_${r.role}`) || "");
+                      } else {
+                        setLoginCreds("");
+                        setLoginPassword("");
+                      }
                     }}
                     className={`py-2 rounded-lg transition cursor-pointer text-center ${
                       loginRole === r.role 
@@ -1651,6 +1978,31 @@ export default function App() {
                       className="w-full pl-10 pr-4 py-2.5 border border-slate-300 rounded-xl focus:ring-2 focus:ring-sky-500 font-sans text-xs focus:outline-none"
                     />
                   </div>
+                </div>
+
+                {/* Remember Me Checkbox */}
+                <div className="flex items-center py-1">
+                  <label className="flex items-center gap-2 cursor-pointer text-xs font-semibold text-slate-600 select-none">
+                    <input
+                      type="checkbox"
+                      checked={rememberMe}
+                      onChange={(e) => {
+                        const checked = e.target.checked;
+                        setRememberMe(checked);
+                        if (checked) {
+                          localStorage.setItem("remember_me", "true");
+                          localStorage.setItem(`login_creds_${loginRole}`, loginCreds);
+                          localStorage.setItem(`login_pass_${loginRole}`, loginPassword);
+                        } else {
+                          localStorage.setItem("remember_me", "false");
+                          localStorage.removeItem(`login_creds_${loginRole}`);
+                          localStorage.removeItem(`login_pass_${loginRole}`);
+                        }
+                      }}
+                      className="w-4 h-4 text-sky-600 border-slate-300 rounded focus:ring-sky-500 cursor-pointer"
+                    />
+                    <span>Ingat saya di perangkat ini</span>
+                  </label>
                 </div>
 
                 <button
@@ -1778,7 +2130,7 @@ export default function App() {
                       >
                         <Users className="w-4 h-4 text-sky-700 shrink-0" />
                         <div className="flex-1">
-                          <p className="font-semibold text-slate-800 text-xs">1. Kelola Data Siswa</p>
+                          <p className="font-semibold text-slate-800 text-xs">Kelola Data Siswa</p>
                           <span className="text-[9px] text-slate-400 block mt-0.5">{students.length} Siswa Terdaftar</span>
                         </div>
                       </button>
@@ -1793,7 +2145,7 @@ export default function App() {
                       >
                         <UserCheck className="w-4 h-4 text-sky-700 shrink-0" />
                         <div className="flex-1">
-                          <p className="font-semibold text-slate-800 text-xs">2. Kelola Data Guru</p>
+                          <p className="font-semibold text-slate-800 text-xs">Kelola Data Guru</p>
                           <span className="text-[9px] text-slate-400 block mt-0.5">{teachers.length} Wali Kelas</span>
                         </div>
                       </button>
@@ -1808,7 +2160,7 @@ export default function App() {
                       >
                         <HeartHandshake className="w-4 h-4 text-sky-700 shrink-0" />
                         <div className="flex-1">
-                          <p className="font-semibold text-slate-800 text-xs">3. Kelola Wali Murid</p>
+                          <p className="font-semibold text-slate-800 text-xs">Kelola Wali Murid</p>
                           <span className="text-[9px] text-slate-400 block mt-0.5">{parents.length} Akun Orang Tua</span>
                         </div>
                       </button>
@@ -1824,7 +2176,7 @@ export default function App() {
                       <div className="flex-1">
                         <div className="flex items-center justify-between gap-1">
                           <p className="font-semibold text-slate-800 text-xs">
-                            {currentUser?.role === "guru" ? "4. Verifikasi Wali Kelas" : currentUser?.role === "ortu" ? "4. Persetujuan Orang Tua" : "4. Portal Input Harian"}
+                            {currentUser?.role === "guru" ? "Verifikasi Wali Kelas" : currentUser?.role === "ortu" ? "Persetujuan Orang Tua" : "Portal Input Harian"}
                           </p>
                           {currentUser?.role === "siswa" && (() => {
                             const todayStr = new Date().toISOString().split("T")[0];
@@ -1861,7 +2213,7 @@ export default function App() {
                       >
                         <FileText className="w-4 h-4 text-sky-700 shrink-0" />
                         <div className="flex-1">
-                          <p className="font-semibold text-slate-800 text-xs">5. Rapor Mingguan & AI</p>
+                          <p className="font-semibold text-slate-800 text-xs">Rapor Mingguan & AI</p>
                           <span className="text-[9px] text-slate-400 block mt-0.5">Evaluasi & Cetak PDF</span>
                         </div>
                       </button>
@@ -1876,7 +2228,7 @@ export default function App() {
                       >
                         <Settings className="w-4 h-4 text-sky-700 shrink-0" />
                         <div className="flex-1">
-                          <p className="font-semibold text-slate-800 text-xs">6. Pengaturan Logo</p>
+                          <p className="font-semibold text-slate-800 text-xs">Pengaturan Logo</p>
                           <span className="text-[9px] text-slate-400 block mt-0.5">Upload Logo Sekolah & Yayasan</span>
                         </div>
                       </button>
@@ -1934,7 +2286,7 @@ export default function App() {
               Info Akademik Sekolah
             </h4>
             <div className="text-[11px] text-sky-200/90 space-y-1.5 leading-relaxed">
-              <p>🏫 <strong>Instansi:</strong> SMP Islam Al Azhar 9</p>
+              <p>🏫 <strong>Instansi:</strong> {schoolProfile.name}</p>
               <p>📍 <strong>Lokasi:</strong> Kec. Bekasi Barat, Jabar</p>
               <p>📅 <strong>Tahun Ajaran:</strong> 2026/2027</p>
               <p>🔒 <strong>Sistem Keamanan:</strong> Terenkripsi hash password & integrasi Firebase UID</p>
@@ -1965,18 +2317,44 @@ export default function App() {
 
                   {/* STUDENT MUTABA'AH REMINDER NOTIFICATION BANNER */}
                   {currentUser?.role === "siswa" && (() => {
-                    const todayStr = new Date().toISOString().split("T")[0];
-                    const hasFilledToday = historyLogs.some(
-                      (log) => log.studentId === currentUser.id && log.date === todayStr
-                    );
+                    const getPastDateStr = (daysAgo: number) => {
+                      const d = new Date();
+                      d.setDate(d.getDate() - daysAgo);
+                      return d.toISOString().split("T")[0];
+                    };
                     
+                    const yesterdayStr = getPastDateStr(1);
+                    const dayBeforeYesterdayStr = getPastDateStr(2);
+                    
+                    const hasFilledYesterday = historyLogs.some(
+                      (log) => log.studentId === currentUser.id && log.date === yesterdayStr
+                    );
+                    const hasFilledDayBeforeYesterday = historyLogs.some(
+                      (log) => log.studentId === currentUser.id && log.date === dayBeforeYesterdayStr
+                    );
+
                     const studentObj = students.find((s) => s.id === currentUser.id);
-                    const currentStreak = studentObj?.streak || 0;
                     const currentPoints = studentObj?.points || 0;
 
-                    if (!hasFilledToday) {
+                    if (!hasFilledYesterday || !hasFilledDayBeforeYesterday) {
+                      const formattedYesterday = new Date(yesterdayStr).toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long' });
+                      const formattedDayBefore = new Date(dayBeforeYesterdayStr).toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long' });
+                      
+                      let warningText = "";
+                      let targetDateToFill = yesterdayStr;
+                      if (!hasFilledYesterday && !hasFilledDayBeforeYesterday) {
+                        warningText = `Anda belum mengisi lembar mutaba'ah harian untuk kemarin (${formattedYesterday}) dan 2 hari yang lalu (${formattedDayBefore}).`;
+                        targetDateToFill = dayBeforeYesterdayStr;
+                      } else if (!hasFilledYesterday) {
+                        warningText = `Anda belum mengisi lembar mutaba'ah harian untuk kemarin (${formattedYesterday}).`;
+                        targetDateToFill = yesterdayStr;
+                      } else {
+                        warningText = `Anda belum mengisi lembar mutaba'ah harian untuk 2 hari yang lalu (${formattedDayBefore}).`;
+                        targetDateToFill = dayBeforeYesterdayStr;
+                      }
+
                       return (
-                        <div className="bg-amber-50 border-2 border-amber-200 rounded-2xl p-5 md:p-6 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shadow-sm animate-pulse-subtle relative overflow-hidden">
+                        <div className="bg-amber-50 border-2 border-amber-200 rounded-2xl p-5 md:p-6 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shadow-sm relative overflow-hidden animate-pulse-subtle">
                           {/* Decorative subtle amber pattern */}
                           <div className="absolute top-0 right-0 w-24 h-24 bg-amber-100/40 rounded-full -mr-8 -mt-8 pointer-events-none"></div>
                           
@@ -1986,26 +2364,29 @@ export default function App() {
                             </div>
                             <div>
                               <div className="flex items-center gap-2">
-                                <h4 className="font-bold text-amber-900 text-sm md:text-base">Pengingat Mutaba'ah Hari Ini</h4>
-                                <span className="bg-amber-100 text-amber-900 text-[9px] font-extrabold uppercase px-2 py-0.5 rounded-full">Belum Diisi</span>
+                                <h4 className="font-bold text-amber-900 text-sm md:text-base">Pengingat Pengisian Mutaba'ah Siswa</h4>
+                                <span className="bg-amber-100 text-amber-900 text-[9px] font-extrabold uppercase px-2 py-0.5 rounded-full">Belum Lengkap</span>
                               </div>
                               <p className="text-xs text-amber-800/90 leading-relaxed mt-1 font-medium max-w-xl">
-                                Assalamu'alaikum <strong className="text-amber-950">{currentUser.name}</strong>, Anda belum mengisi lembar mutaba'ah harian untuk hari ini ({new Date().toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}). Ayo segera isi sekarang untuk mempertahankan streak ibadah Anda!
+                                Assalamu'alaikum <strong className="text-amber-950">{currentUser.name}</strong>, {warningText} Ayo segera lengkapi sekarang!
                               </p>
                               <div className="flex items-center gap-3 mt-2 text-[10px] font-bold text-amber-700">
-                                <span className="flex items-center gap-1">🔥 Streak saat ini: {currentStreak} Hari</span>
+                                <span className="flex items-center gap-1">💎 Total poin terverifikasi: {currentPoints} Pts</span>
                                 <span>•</span>
-                                <span className="flex items-center gap-1">💎 Total poin: {currentPoints} Pts</span>
+                                <span className="text-slate-500 font-semibold">(Catatan: pengisian hari ini belum dibuka, baru bisa diisi besok pagi)</span>
                               </div>
                             </div>
                           </div>
                           
                           <button
-                            onClick={() => setOpTab("daily")}
+                            onClick={() => {
+                              setTanggalMutabaah(targetDateToFill);
+                              setOpTab("daily");
+                            }}
                             className="bg-amber-600 hover:bg-amber-700 text-white font-bold py-2.5 px-5 rounded-xl text-xs transition shadow cursor-pointer shrink-0 flex items-center gap-1.5 relative z-10 self-stretch md:self-auto justify-center"
                           >
                             <Send className="w-3.5 h-3.5" />
-                            <span>Isi Mutaba'ah Sekarang</span>
+                            <span>Lengkapi Sekarang</span>
                           </button>
                         </div>
                       );
@@ -2020,23 +2401,23 @@ export default function App() {
                             </div>
                             <div>
                               <div className="flex items-center gap-2">
-                                <h4 className="font-bold text-emerald-900 text-sm md:text-base">Laporan Mutaba'ah Hari Ini Selesai</h4>
-                                <span className="bg-emerald-100 text-emerald-900 text-[9px] font-extrabold uppercase px-2 py-0.5 rounded-full">Sudah Diisi</span>
+                                <h4 className="font-bold text-emerald-900 text-sm md:text-base font-display">Mutaba'ah Harian Lengkap</h4>
+                                <span className="bg-emerald-100 text-emerald-900 text-[9px] font-extrabold uppercase px-2 py-0.5 rounded-full">Aman ✓</span>
                               </div>
                               <p className="text-xs text-emerald-800/90 leading-relaxed mt-1 font-medium max-w-xl">
-                                Alhamdulillah <strong className="text-emerald-950">{currentUser.name}</strong>, Anda telah berhasil mengirimkan laporan mutaba'ah harian untuk hari ini. Pertahankan terus konsistensi dan semangat ibadah harian Anda!
+                                Alhamdulillah <strong className="text-emerald-950">{currentUser.name}</strong>, Anda telah berhasil mengisi lembar mutaba'ah harian untuk kemarin (H-1) dan 2 hari yang lalu (H-2). Pertahankan terus konsistensi ibadah Anda!
                               </p>
                               <div className="flex items-center gap-3 mt-2 text-[10px] font-bold text-emerald-700">
-                                <span className="flex items-center gap-1">🔥 Streak saat ini: {currentStreak} Hari</span>
+                                <span className="flex items-center gap-1">💎 Total poin terverifikasi: {currentPoints} Pts</span>
                                 <span>•</span>
-                                <span className="flex items-center gap-1">💎 Total poin: {currentPoints} Pts</span>
+                                <span className="text-emerald-600/95 font-semibold">(Catatan: pengisian hari ini belum dibuka, baru bisa diisi besok pagi)</span>
                               </div>
                             </div>
                           </div>
                           
                           <div className="text-right shrink-0 self-stretch md:self-auto flex md:flex-col items-center md:items-end justify-between md:justify-center gap-2">
                             <span className="text-[10px] text-emerald-600/90 font-bold">Terima kasih atas keistiqomahanmu!</span>
-                            <span className="bg-emerald-600 text-white font-mono font-bold text-[10px] px-3 py-1 rounded-lg">Status: Aman ✓</span>
+                            <span className="bg-emerald-600 text-white font-mono font-bold text-[10px] px-3 py-1 rounded-lg">Lengkap ✓</span>
                           </div>
                         </div>
                       );
@@ -2075,74 +2456,320 @@ export default function App() {
                         Langkah Eksplorasi Cepat untuk Anda:
                       </h4>
                       <ol className="list-decimal list-inside space-y-1 mt-1.5 text-amber-900/90 font-medium">
-                        <li>Pergi ke tab <strong>1. Kelola Data Siswa</strong>, <strong>2. Kelola Data Guru</strong>, atau <strong>3. Kelola Wali Murid</strong> untuk meninjau database master dan mencoba menambahkan data riil Anda sendiri.</li>
-                        <li>Pergi ke tab <strong>4. Portal Input Harian</strong>, pilih siswa (termasuk yang baru Anda tambahkan), centang aktivitas ibadahnya, lalu klik Submit untuk memproses data & poin ke server.</li>
-                        <li>Pergi ke tab <strong>5. Rapor Mingguan & AI</strong> untuk melihat grafik, meminta asisten AI Gemini menulis evaluasi akhlak anak, dan mencetak laporan rapinya!</li>
+                        <li>Pergi ke tab <strong>Kelola Data Siswa</strong>, <strong>Kelola Data Guru</strong>, atau <strong>Kelola Wali Murid</strong> untuk meninjau database master dan mencoba menambahkan data riil Anda sendiri.</li>
+                        <li>Pergi ke tab <strong>Portal Input Harian</strong>, pilih siswa (termasuk yang baru Anda tambahkan), centang aktivitas ibadahnya, lalu klik Submit untuk memproses data & poin ke server.</li>
+                        <li>Pergi ke tab <strong>Rapor Mingguan & AI</strong> untuk melihat grafik, meminta asisten AI Gemini menulis evaluasi akhlak anak, dan mencetak laporan rapinya!</li>
                       </ol>
                     </div>
                   )}
 
-                  {/* TWO COLUMN GRID: TOP STREAKS & RECENT LOGS */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    {/* Top Streaks */}
-                    <div className="border border-slate-200 rounded-2xl p-5">
-                      <h3 className="font-bold text-slate-800 text-xs mb-3 flex items-center gap-1.5 uppercase tracking-wide">
-                        <Flame className="w-4 h-4 text-amber-500 fill-amber-500 animate-pulse" />
-                        Peringkat Streak Terlama Siswa
-                      </h3>
-                      <div className="space-y-2.5">
-                        {students.map((s, idx) => (
-                          <div key={s.id} className="flex justify-between items-center bg-slate-50 p-3 rounded-xl border border-slate-100">
-                            <div className="flex items-center gap-2.5">
-                              <span className="w-5 h-5 flex items-center justify-center bg-sky-800 text-white font-bold text-[10px] rounded-full">{idx + 1}</span>
-                              <div>
-                                <h4 className="font-bold text-slate-800 text-xs">{s.name}</h4>
-                                <p className="text-[9px] text-slate-500">{s.class}</p>
-                              </div>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <span className="font-mono text-xs font-bold text-amber-600">{s.streak} Hari</span>
-                              <div className="flex flex-col items-end">
-                                <span className="text-[9px] bg-sky-100 text-sky-800 px-2 py-0.5 rounded font-bold">{s.points} Pts</span>
-                                {(() => {
-                                  const pending = historyLogs
-                                    .filter(log => log.studentId === s.id && (!log.parentApproved || !log.teacherApproved))
-                                    .reduce((sum, log) => sum + log.pointsEarned, 0);
-                                  return pending > 0 ? (
-                                    <span className="text-[8px] text-amber-600 font-bold mt-0.5 animate-pulse" title="Belum disetujui musyrif & ortu">+{pending} Tertunda</span>
-                                  ) : null;
-                                })()}
-                              </div>
-                            </div>
-                          </div>
-                        ))}
+                  {/* PAPAN PERINGKAT RESMI SISWA (POIN TERVERIFIKASI) */}
+                  <div className="bg-slate-50 border border-slate-200 rounded-3xl p-5 md:p-6 flex flex-col gap-6 shadow-sm">
+                    {/* Header */}
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 pb-4">
+                      <div>
+                        <h3 className="text-base md:text-lg font-display font-bold text-blue-950 flex items-center gap-2">
+                          <Award className="w-5.5 h-5.5 text-amber-500 fill-amber-500 animate-bounce" />
+                          🏆 Papan Peringkat Mutaba'ah Siswa Terbaik
+                        </h3>
+                        <p className="text-[11px] text-slate-500 mt-1">
+                          Peringkat diurutkan berdasarkan jumlah akumulasi poin mutaba'ah yang telah disetujui & diverifikasi lengkap oleh Wali Kelas dan Orang Tua.
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2 text-[10px] bg-sky-50 border border-sky-100 text-sky-800 font-bold px-3 py-1.5 rounded-full self-start">
+                        <Check className="w-3.5 h-3.5 text-sky-600" />
+                        <span>Sistem Akurasi Live</span>
                       </div>
                     </div>
 
-                    {/* Recent Activity Logs */}
-                    <div className="border border-slate-200 rounded-2xl p-5">
-                      <h3 className="font-bold text-slate-800 text-xs mb-3 flex items-center gap-1.5 uppercase tracking-wide">
-                        <Clock className="w-4 h-4 text-slate-500" />
-                        Aktivitas Pengisian Terkini (Hari Ini)
-                      </h3>
-                      <div className="space-y-2.5">
-                        {historyLogs.map((log, idx) => (
-                          <div key={idx} className="bg-slate-50 p-3 rounded-xl border border-slate-100 text-xs">
-                            <div className="flex justify-between items-center">
-                              <strong className="text-slate-800">{log.studentName}</strong>
-                              <span className="text-[9px] text-slate-400 font-mono font-bold">{log.date}</span>
+                    {/* Filter Controls Row */}
+                    <div className="bg-white border border-slate-200 rounded-2xl p-4 flex flex-col gap-4">
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 items-end">
+                        {/* 1. Filter Kelas */}
+                        <div>
+                          <label className="block text-[10px] font-bold text-slate-600 uppercase tracking-wider mb-1.5 flex items-center gap-1">
+                            <Filter className="w-3.5 h-3.5 text-slate-500" />
+                            Filter Kelas
+                          </label>
+                          <select
+                            value={rankClassFilter}
+                            onChange={(e) => {
+                              setRankClassFilter(e.target.value);
+                              setShowAllRanked(false);
+                            }}
+                            className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs focus:ring-2 focus:ring-sky-500 focus:outline-none font-medium text-slate-700"
+                          >
+                            <option value="Semua Kelas">Semua Kelas</option>
+                            <option value="7A">Kelas 7A</option>
+                            <option value="7B">Kelas 7B</option>
+                            <option value="7C">Kelas 7C</option>
+                            <option value="8A">Kelas 8A</option>
+                            <option value="8B">Kelas 8B</option>
+                            <option value="8C">Kelas 8C</option>
+                            <option value="9A">Kelas 9A</option>
+                            <option value="9B">Kelas 9B</option>
+                            <option value="9C">Kelas 9C</option>
+                          </select>
+                        </div>
+
+                        {/* 2. Filter Waktu */}
+                        <div>
+                          <label className="block text-[10px] font-bold text-slate-600 uppercase tracking-wider mb-1.5 flex items-center gap-1">
+                            <CalendarDays className="w-3.5 h-3.5 text-slate-500" />
+                            Filter Rentang Waktu
+                          </label>
+                          <select
+                            value={rankTimeFilter}
+                            onChange={(e) => {
+                              setRankTimeFilter(e.target.value as any);
+                              setShowAllRanked(false);
+                            }}
+                            className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs focus:ring-2 focus:ring-sky-500 focus:outline-none font-medium text-slate-700"
+                          >
+                            <option value="semua">Semua Waktu (Akumulasi)</option>
+                            <option value="harian">Harian (Hari Ini)</option>
+                            <option value="pekanan">Pekanan (7 Hari Terakhir)</option>
+                            <option value="bulanan">Bulanan (30 Hari Terakhir)</option>
+                            <option value="custom">Pilih Tanggal Manual</option>
+                          </select>
+                        </div>
+
+                        {/* 3. Custom Start Date (shown only if 'custom') */}
+                        {rankTimeFilter === "custom" && (
+                          <div className="animate-fade-in">
+                            <label className="block text-[10px] font-bold text-slate-600 uppercase tracking-wider mb-1.5 flex items-center gap-1">
+                              <CalendarRange className="w-3.5 h-3.5 text-slate-500" />
+                              Dari Tanggal
+                            </label>
+                            <input
+                              type="date"
+                              value={rankStartDate}
+                              onChange={(e) => {
+                                setRankStartDate(e.target.value);
+                                setShowAllRanked(false);
+                              }}
+                              className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-1.5 text-xs focus:ring-2 focus:ring-sky-500 focus:outline-none font-mono text-slate-700"
+                            />
+                          </div>
+                        )}
+
+                        {/* 4. Custom End Date (shown only if 'custom') */}
+                        {rankTimeFilter === "custom" && (
+                          <div className="animate-fade-in">
+                            <label className="block text-[10px] font-bold text-slate-600 uppercase tracking-wider mb-1.5 flex items-center gap-1">
+                              <CalendarRange className="w-3.5 h-3.5 text-slate-500" />
+                              Sampai Tanggal
+                            </label>
+                            <input
+                              type="date"
+                              value={rankEndDate}
+                              onChange={(e) => {
+                                setRankEndDate(e.target.value);
+                                setShowAllRanked(false);
+                              }}
+                              className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-1.5 text-xs focus:ring-2 focus:ring-sky-500 focus:outline-none font-mono text-slate-700"
+                            />
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Ranked List Section */}
+                    <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-inner">
+                      {(() => {
+                        // Calculate approved and unverified points for each student
+                        const computedList = students.map(student => {
+                          const studentLogs = historyLogs.filter(log => log.studentId === student.id);
+                          
+                          // Filter logs by selected timeframe
+                          const timeFilteredLogs = studentLogs.filter(log => {
+                            const logDate = log.date;
+                            const today = new Date().toISOString().split("T")[0];
+
+                            if (rankTimeFilter === "harian") {
+                              return logDate === today;
+                            } else if (rankTimeFilter === "pekanan") {
+                              const logTime = new Date(logDate).getTime();
+                              const todayTime = new Date(today).getTime();
+                              const diffDays = (todayTime - logTime) / (1000 * 60 * 60 * 24);
+                              return diffDays >= 0 && diffDays < 7;
+                            } else if (rankTimeFilter === "bulanan") {
+                              const logTime = new Date(logDate).getTime();
+                              const todayTime = new Date(today).getTime();
+                              const diffDays = (todayTime - logTime) / (1000 * 60 * 60 * 24);
+                              return diffDays >= 0 && diffDays < 30;
+                            } else if (rankTimeFilter === "custom") {
+                              return logDate >= rankStartDate && logDate <= rankEndDate;
+                            }
+                            return true; // semua
+                          });
+
+                          const approvedLogs = timeFilteredLogs.filter(log => log.parentApproved && log.teacherApproved);
+                          const unapprovedLogs = timeFilteredLogs.filter(log => !(log.parentApproved && log.teacherApproved));
+
+                          const pointsSum = approvedLogs.reduce((sum, log) => sum + log.pointsEarned, 0);
+                          const unverifiedSum = unapprovedLogs.reduce((sum, log) => sum + log.pointsEarned, 0);
+                          const daysCount = approvedLogs.length;
+
+                          return {
+                            ...student,
+                            pointsEarned: pointsSum,
+                            unverifiedPoints: unverifiedSum,
+                            daysCount
+                          };
+                        });
+
+                        // Filter by Class
+                        const classFiltered = computedList.filter(s => rankClassFilter === "Semua Kelas" || s.class === rankClassFilter);
+
+                        // Sort by Points Descending
+                        const sortedRanked = classFiltered.sort((a, b) => b.pointsEarned - a.pointsEarned || b.unverifiedPoints - a.unverifiedPoints);
+
+                        if (sortedRanked.length === 0) {
+                          return (
+                            <div className="py-12 text-center flex flex-col items-center justify-center gap-3">
+                              <Award className="w-12 h-12 text-slate-300" />
+                              <p className="text-xs font-bold text-slate-500">Tidak ada data siswa yang cocok dengan filter kelas dan rentang waktu terpilih.</p>
+                              <span className="text-[10px] text-slate-400">Pastikan lembar mutaba'ah harian siswa sudah diverifikasi penuh oleh Wali Kelas dan disetujui Orang Tua.</span>
                             </div>
-                            <div className="flex justify-between items-center mt-1.5">
-                              <span className="text-[10px] text-sky-700 font-semibold">Berhasil disubmit (+{log.pointsEarned} Poin)</span>
-                              <span className="text-[10px] text-amber-600 font-bold flex items-center gap-1">
-                                <Flame className="w-3.5 h-3.5 fill-amber-500 text-amber-500" />
-                                {log.streakDays} Hari Streak
-                              </span>
+                          );
+                        }
+
+                        // Pagination: Show top 5 unless showAllRanked is true
+                        const displayedRanked = showAllRanked ? sortedRanked : sortedRanked.slice(0, 5);
+
+                        return (
+                          <div className="divide-y divide-slate-100">
+                            {/* Leaderboard Table Header */}
+                            <div className="grid grid-cols-12 gap-3 bg-slate-50 p-3.5 text-[9px] font-bold text-slate-500 uppercase tracking-wider border-b border-slate-200">
+                              <div className="col-span-2 text-center">Peringkat</div>
+                              <div className="col-span-5 sm:col-span-6">Nama Lengkap Murid</div>
+                              <div className="col-span-2 text-center">Hari Terisi</div>
+                              <div className="col-span-3 sm:col-span-2 text-right">Perolehan Poin</div>
+                            </div>
+
+                            {/* Table Rows */}
+                            {displayedRanked.map((s, idx) => {
+                              // Style specific for Top 3
+                              const isGold = idx === 0 && !showAllRanked;
+                              const isSilver = idx === 1 && !showAllRanked;
+                              const isBronze = idx === 2 && !showAllRanked;
+
+                              let rankBadgeBg = "bg-slate-100 text-slate-700";
+                              let rankBadgeLabel = `${idx + 1}`;
+                              let rankBadgeBorder = "border-slate-200";
+
+                              if (isGold) {
+                                rankBadgeBg = "bg-amber-100 text-amber-900";
+                                rankBadgeLabel = "🥇 1";
+                                rankBadgeBorder = "border-amber-300";
+                              } else if (isSilver) {
+                                rankBadgeBg = "bg-slate-200 text-slate-800";
+                                rankBadgeLabel = "🥈 2";
+                                rankBadgeBorder = "border-slate-300";
+                              } else if (isBronze) {
+                                rankBadgeBg = "bg-amber-50 text-amber-800";
+                                rankBadgeLabel = "🥉 3";
+                                rankBadgeBorder = "border-amber-200";
+                              }
+
+                              return (
+                                <div key={s.id} className="grid grid-cols-12 gap-3 p-3.5 items-center hover:bg-slate-50/50 transition duration-150">
+                                  {/* Rank Badge */}
+                                  <div className="col-span-2 flex justify-center">
+                                    <span className={`px-2.5 py-0.5 rounded-full font-extrabold text-[10px] border flex items-center gap-1 shadow-sm ${rankBadgeBg} ${rankBadgeBorder}`}>
+                                      {rankBadgeLabel}
+                                    </span>
+                                  </div>
+
+                                  {/* Student Name & Class */}
+                                  <div className="col-span-5 sm:col-span-6 flex flex-col gap-0.5">
+                                    <strong className="text-xs font-bold text-blue-950 truncate">{s.name}</strong>
+                                    <div className="flex items-center gap-2">
+                                      <span className="bg-sky-50 text-sky-800 border border-sky-200 font-extrabold text-[8px] uppercase px-1.5 py-0.5 rounded-md">
+                                        Kelas {s.class}
+                                      </span>
+                                    </div>
+                                  </div>
+
+                                  {/* Days Filled Count */}
+                                  <div className="col-span-2 text-center font-mono text-xs font-bold text-slate-700">
+                                    {s.daysCount} Hari
+                                  </div>
+
+                                  {/* Points Earned */}
+                                  <div className="col-span-3 sm:col-span-2 text-right flex flex-col items-end gap-0.5">
+                                    <span className="inline-flex items-center gap-1 bg-emerald-50 text-emerald-800 border border-emerald-200 font-mono font-extrabold text-xs px-2.5 py-1 rounded-xl shadow-sm">
+                                      ⭐ {s.pointsEarned} Pts
+                                    </span>
+                                    {s.unverifiedPoints > 0 && (
+                                      <span className="text-[9px] text-amber-600 font-bold bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded-lg font-mono">
+                                        ⏳ {s.unverifiedPoints} Belum Verif
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                              );
+                            })}
+
+                            {/* View More Button */}
+                            {sortedRanked.length > 5 && (
+                              <div className="p-3 text-center bg-slate-50/50 border-t border-slate-100">
+                                <button
+                                  type="button"
+                                  onClick={() => setShowAllRanked(!showAllRanked)}
+                                  className="text-[11px] font-bold text-sky-800 hover:text-blue-900 transition flex items-center justify-center gap-1 mx-auto cursor-pointer animate-pulse-subtle"
+                                >
+                                  {showAllRanked ? (
+                                    <>
+                                      <ChevronUp className="w-4 h-4" />
+                                      <span>Tampilkan Lebih Sedikit</span>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <ChevronDown className="w-4 h-4" />
+                                      <span>Tampilkan Seluruh Siswa ({sortedRanked.length})</span>
+                                    </>
+                                  )}
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })()}
+                    </div>
+                  </div>
+
+                  {/* RECENT ACTIVITY LOGS IN FULL WIDTH GRID */}
+                  <div className="border border-slate-200 rounded-3xl p-5 md:p-6 bg-slate-50/50">
+                    <h3 className="font-bold text-slate-800 text-xs mb-3.5 flex items-center gap-1.5 uppercase tracking-wide">
+                      <Clock className="w-4 h-4 text-slate-500" />
+                      Aktivitas Pengisian Terkini
+                    </h3>
+                    {historyLogs.length === 0 ? (
+                      <p className="text-xs text-slate-500 text-center py-6 font-medium">Belum ada aktivitas pengisian.</p>
+                    ) : (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {historyLogs.slice(0, 10).map((log, idx) => (
+                          <div key={idx} className="bg-white p-4 rounded-2xl border border-slate-200 text-xs shadow-sm flex flex-col justify-between hover:border-slate-300 transition duration-150">
+                            <div className="flex justify-between items-center">
+                              <strong className="text-slate-800 text-sm font-bold">{log.studentName}</strong>
+                              <span className="text-[10px] text-slate-400 font-mono font-extrabold bg-slate-100 px-2 py-0.5 rounded-lg">{log.date}</span>
+                            </div>
+                            <div className="flex justify-between items-center mt-3 pt-2.5 border-t border-slate-100">
+                              <span className="text-[10.5px] text-sky-700 font-bold">Telah dikirim (+{log.pointsEarned} Poin)</span>
+                              <div className="flex items-center gap-2">
+                                {log.teacherApproved && log.parentApproved ? (
+                                  <span className="bg-emerald-100 text-emerald-800 font-extrabold text-[8px] uppercase tracking-wider px-2 py-0.5 rounded-md">✓ Disetujui Penuh</span>
+                                ) : (
+                                  <span className="bg-amber-100 text-amber-800 font-extrabold text-[8px] uppercase tracking-wider px-2 py-0.5 rounded-md">⏳ Menunggu Verifikasi</span>
+                                )}
+                              </div>
                             </div>
                           </div>
                         ))}
                       </div>
-                    </div>
+                    )}
                   </div>
                 </div>
               )}
@@ -2153,7 +2780,7 @@ export default function App() {
                   <div>
                     <h2 className="text-xl md:text-2xl font-display font-bold text-blue-950 flex items-center gap-2.5">
                       <Users className="w-6 h-6 text-sky-600" />
-                      1. Kelola Database Siswa (Master Siswa)
+                      Kelola Database Siswa (Master Siswa)
                     </h2>
                     <p className="text-xs md:text-sm text-slate-600 mt-1 leading-relaxed">
                       Wali Kelas dan Admin sekolah dapat mendaftarkan siswa baru ke kelas yang sesuai. Siswa yang didaftarkan akan langsung terhubung ke database dan dapat dipilih di portal input harian.
@@ -2200,14 +2827,155 @@ export default function App() {
                           }
                           return true;
                         });
-                        const isAllSelected = visibleStudents.length > 0 && visibleStudents.every(s => selectedStudentIds.includes(s.id));
+
+                        // Calculate points earned for the current sorting & filtering configurations
+                        const mappedStudents = visibleStudents.map(student => {
+                          let computedPoints = student.points;
+                          if (studentSortBy !== "total") {
+                            const studentLogs = historyLogs.filter(log => log.studentId === student.id);
+                            
+                            const timeFilteredLogs = studentLogs.filter(log => {
+                              const logDate = log.date;
+                              const today = new Date().toISOString().split("T")[0];
+
+                              if (studentSortBy === "harian") {
+                                return logDate === today;
+                              } else if (studentSortBy === "pekanan") {
+                                const logTime = new Date(logDate).getTime();
+                                const todayTime = new Date(today).getTime();
+                                const diffDays = (todayTime - logTime) / (1000 * 60 * 60 * 24);
+                                return diffDays >= 0 && diffDays < 7;
+                              } else if (studentSortBy === "bulanan") {
+                                const logTime = new Date(logDate).getTime();
+                                const todayTime = new Date(today).getTime();
+                                const diffDays = (todayTime - logTime) / (1000 * 60 * 60 * 24);
+                                return diffDays >= 0 && diffDays < 30;
+                              } else if (studentSortBy === "custom") {
+                                return logDate >= studentSortStartDate && logDate <= studentSortEndDate;
+                              }
+                              return true;
+                            });
+
+                            const matchingLogs = timeFilteredLogs.filter(log => {
+                              if (studentSortType === "verified") {
+                                return log.parentApproved && log.teacherApproved;
+                              }
+                              return true; // "all"
+                            });
+
+                            computedPoints = matchingLogs.reduce((sum, log) => sum + log.pointsEarned, 0);
+                          }
+
+                          return {
+                            ...student,
+                            computedPoints
+                          };
+                        });
+
+                        // Sort descending by calculated points
+                        const sortedStudents = mappedStudents.sort((a, b) => b.computedPoints - a.computedPoints);
+
+                        const isAllSelected = sortedStudents.length > 0 && sortedStudents.every(s => selectedStudentIds.includes(s.id));
 
                         return (
                           <>
+                            {/* Sort & Point Filter Controls */}
+                            <div className="bg-slate-50 border border-slate-200/80 rounded-2xl p-4 flex flex-col gap-3 shadow-sm mb-2">
+                              <div className="flex items-center gap-2 border-b border-slate-200/60 pb-2 justify-between">
+                                <div className="flex items-center gap-2">
+                                  <Award className="w-4 h-4 text-sky-600" />
+                                  <h4 className="font-bold text-slate-800 text-xs">Penyaringan & Pengurutan Poin Siswa</h4>
+                                </div>
+                                <span className="text-[10px] bg-sky-100 text-sky-800 px-2 py-0.5 rounded-full font-bold">
+                                  Mode Urut: {studentSortBy === "total" ? "Kumulatif" : studentSortBy === "harian" ? "Harian" : studentSortBy === "pekanan" ? "Pekanan" : studentSortBy === "bulanan" ? "Bulanan" : "Kustom"}
+                                </span>
+                              </div>
+                              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 items-end">
+                                {/* Period Select */}
+                                <div className="flex flex-col gap-1">
+                                  <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Periode Poin</label>
+                                  <select
+                                    value={studentSortBy}
+                                    onChange={(e) => setStudentSortBy(e.target.value as any)}
+                                    className="bg-white border border-slate-200 rounded-xl px-2.5 py-1.5 text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-sky-500 cursor-pointer"
+                                  >
+                                    <option value="total">Poin Total (Kumulatif)</option>
+                                    <option value="harian">Setiap Hari (Hari Ini)</option>
+                                    <option value="pekanan">Pekan Ini (7 Hari Terakhir)</option>
+                                    <option value="bulanan">Bulan Ini (30 Hari Terakhir)</option>
+                                    <option value="custom">Rentang Tanggal Terpilih</option>
+                                  </select>
+                                </div>
+
+                                {/* Status Poin Select */}
+                                <div className="flex flex-col gap-1">
+                                  <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Status Verifikasi</label>
+                                  <select
+                                    value={studentSortType}
+                                    disabled={studentSortBy === "total"}
+                                    onChange={(e) => setStudentSortType(e.target.value as any)}
+                                    className="bg-white border border-slate-200 rounded-xl px-2.5 py-1.5 text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-sky-500 cursor-pointer disabled:bg-slate-100 disabled:text-slate-400"
+                                  >
+                                    <option value="all">Semua Poin (Terverifikasi + Tertunda)</option>
+                                    <option value="verified">Hanya Poin Terverifikasi</option>
+                                  </select>
+                                </div>
+
+                                {/* Bulk Reset Action */}
+                                <div className="flex gap-2">
+                                  <button
+                                    type="button"
+                                    onClick={handleBulkResetPointsAll}
+                                    className="flex-1 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 font-bold text-[10px] py-1.5 px-2 rounded-xl transition cursor-pointer flex items-center justify-center gap-1 shrink-0"
+                                    title="Mereset seluruh poin semua siswa di database menjadi 0"
+                                  >
+                                    <RefreshCw className="w-3.5 h-3.5 text-amber-600 animate-spin-slow" />
+                                    <span>Reset Semua</span>
+                                  </button>
+
+                                  {selectedStudentIds.length > 0 && (
+                                    <button
+                                      type="button"
+                                      onClick={handleBulkResetPointsSelected}
+                                      className="flex-1 bg-amber-600 hover:bg-amber-700 text-white font-bold text-[10px] py-1.5 px-2 rounded-xl transition cursor-pointer flex items-center justify-center gap-1 shadow-sm animate-pulse-subtle shrink-0"
+                                      title="Mereset poin siswa terpilih saja menjadi 0"
+                                    >
+                                      <RefreshCw className="w-3.5 h-3.5 text-white" />
+                                      <span>Reset Terpilih</span>
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+
+                              {/* Custom Date Inputs if studentSortBy is custom */}
+                              {studentSortBy === "custom" && (
+                                <div className="grid grid-cols-2 gap-3 p-3 bg-white border border-slate-200/60 rounded-xl animate-fadeIn">
+                                  <div className="flex flex-col gap-1">
+                                    <label className="text-[9px] font-bold text-slate-500 uppercase">Dari Tanggal</label>
+                                    <input
+                                      type="date"
+                                      value={studentSortStartDate}
+                                      onChange={(e) => setStudentSortStartDate(e.target.value)}
+                                      className="border border-slate-200 rounded-lg p-1.5 text-xs font-medium focus:ring-2 focus:ring-sky-500"
+                                    />
+                                  </div>
+                                  <div className="flex flex-col gap-1">
+                                    <label className="text-[9px] font-bold text-slate-500 uppercase">Sampai Tanggal</label>
+                                    <input
+                                      type="date"
+                                      value={studentSortEndDate}
+                                      onChange={(e) => setStudentSortEndDate(e.target.value)}
+                                      className="border border-slate-200 rounded-lg p-1.5 text-xs font-medium focus:ring-2 focus:ring-sky-500"
+                                    />
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+
                             <div className="flex justify-between items-center">
                               <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500">
                                 {currentUser?.role === "admin" 
-                                  ? "Daftar Siswa SMP Islam Al Azhar 9 Bekasi" 
+                                  ? `Daftar Siswa ${schoolProfile.name}` 
                                   : "Daftar Siswa Sesuai Kelasnya Masing-Masing"}
                               </h3>
                               {(currentUser?.role === "admin" || currentUser?.role === "guru") && selectedStudentIds.length > 0 && (
@@ -2229,7 +2997,7 @@ export default function App() {
                                         <input 
                                           type="checkbox"
                                           checked={isAllSelected}
-                                          onChange={() => handleToggleSelectAllStudents(visibleStudents)}
+                                          onChange={() => handleToggleSelectAllStudents(sortedStudents)}
                                           className="rounded border-slate-300 text-sky-600 focus:ring-sky-500 cursor-pointer w-4 h-4"
                                         />
                                       </th>
@@ -2247,7 +3015,7 @@ export default function App() {
                                   </tr>
                                 </thead>
                                 <tbody className="divide-y divide-slate-100">
-                                  {visibleStudents.map((s, idx) => {
+                                  {sortedStudents.map((s, idx) => {
                                     const isSelected = selectedStudentIds.includes(s.id);
                                     return (
                                       <tr key={s.id} className={`hover:bg-slate-50/50 ${isSelected ? "bg-slate-50" : ""}`}>
@@ -2276,7 +3044,12 @@ export default function App() {
                                           <div className="text-slate-500 text-[10px]">2. {s.musyrif2 || "-"}</div>
                                         </td>
                                         <td className="p-3 text-right font-mono">
-                                          <div className="font-bold text-sky-700">{s.points} Pts</div>
+                                          <div className="font-bold text-sky-700">{s.computedPoints} Pts</div>
+                                          {studentSortBy !== "total" && (
+                                            <span className="text-[10px] text-slate-400 block font-semibold mt-0.5">
+                                              Total: {s.points} Pts
+                                            </span>
+                                          )}
                                           {(() => {
                                             const pending = historyLogs
                                               .filter(log => log.studentId === s.id && (!log.parentApproved || !log.teacherApproved))
@@ -2475,10 +3248,10 @@ export default function App() {
                   <div>
                     <h2 className="text-xl md:text-2xl font-display font-bold text-blue-950 flex items-center gap-2.5">
                       <UserCheck className="w-6 h-6 text-sky-600" />
-                      2. Kelola Database Wali Kelas (Guru)
+                      Kelola Database Wali Kelas (Guru)
                     </h2>
                     <p className="text-xs md:text-sm text-slate-600 mt-1 leading-relaxed">
-                      Sistem pendaftaran guru wali kelas SMP Islam Al Azhar 9 Bekasi. Guru berperan memverifikasi mutaba'ah mingguan siswa, mengisi catatan kepribadian, serta memicu asisten AI Gemini.
+                      Sistem pendaftaran guru wali kelas {schoolProfile.name}. Guru berperan memverifikasi mutaba'ah mingguan siswa, mengisi catatan kepribadian, serta memicu asisten AI Gemini.
                     </p>
                   </div>
 
@@ -2675,7 +3448,7 @@ export default function App() {
                   <div>
                     <h2 className="text-xl md:text-2xl font-display font-bold text-blue-950 flex items-center gap-2.5">
                       <HeartHandshake className="w-6 h-6 text-sky-600" />
-                      3. Kelola Database Wali Murid (Orang Tua)
+                      Kelola Database Wali Murid (Orang Tua)
                     </h2>
                     <p className="text-xs md:text-sm text-slate-600 mt-1 leading-relaxed">
                       Wali murid berhak memantau progress pengisian ibadah harian anaknya serta memberikan catatan motivasi keluarga sebelum diverifikasi oleh wali kelas.
@@ -2942,7 +3715,7 @@ export default function App() {
                         <div>
                           <h2 className="text-xl md:text-2xl font-display font-bold text-blue-950 flex items-center gap-2.5">
                             <Send className="w-6 h-6 text-sky-700" />
-                            4. Portal Pengisian Mutaba'ah Harian (Siswa)
+                            Portal Pengisian Mutaba'ah Harian (Siswa)
                           </h2>
                           <p className="text-xs md:text-sm text-slate-600 mt-1 leading-relaxed">
                             Pilih siswa di bawah ini untuk mensimulasikan proses pengisian lembar mutaba'ah harian. Setelah diklik Submit, poin dan streak siswa akan otomatis dihitung oleh sistem backend secara real-time!
@@ -3073,23 +3846,44 @@ export default function App() {
                                             <h5 className="font-bold text-slate-800 text-[10px] uppercase tracking-wider flex items-center gap-1">
                                               <span>🕌 Aktivitas Shalat & Ibadah</span>
                                             </h5>
-                                            <div className="space-y-1.5">
-                                              <div className="flex flex-wrap gap-1">
-                                                {["subuh", "zuhur", "ashar", "maghrib", "isya"].map(sh => {
-                                                  const checked = (log.shalatWajib as any)?.[sh];
-                                                  return (
-                                                    <span 
-                                                      key={sh} 
-                                                      className={`px-2 py-1 rounded text-[9px] font-bold uppercase tracking-wider ${
-                                                        checked 
-                                                          ? "bg-sky-600 text-white" 
-                                                          : "bg-slate-200 text-slate-500 line-through"
-                                                      }`}
-                                                    >
-                                                      {sh}
-                                                    </span>
-                                                  );
-                                                })}
+                                            <div className="space-y-2.5">
+                                              <div>
+                                                <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wide block mb-1">Shalat Fardhu:</span>
+                                                <div className="flex flex-col gap-1.5">
+                                                  {[
+                                                    { key: "subuh", label: "Subuh" },
+                                                    { key: "zuhur", label: "Dzuhur" },
+                                                    { key: "ashar", label: "Ashar" },
+                                                    { key: "maghrib", label: "Maghrib" },
+                                                    { key: "isya", label: "Isya" }
+                                                  ].map(item => {
+                                                    const val = (log.shalatWajib as any)?.[item.key];
+                                                    let statusText = "Tidak Shalat";
+                                                    let statusColor = "bg-rose-50 text-rose-700 border-rose-100";
+                                                    if ((log.shalatWajib as any)?.haidh) {
+                                                      statusText = "🌸 Haidh";
+                                                      statusColor = "bg-pink-50 text-pink-700 border-pink-100";
+                                                    } else if (val === "berjamaah" || val === true) {
+                                                      statusText = "🕌 Jama'ah";
+                                                      statusColor = "bg-sky-50 text-sky-800 border-sky-100";
+                                                    } else if (val === "munfarid") {
+                                                      statusText = "👤 Sendiri";
+                                                      statusColor = "bg-indigo-50 text-indigo-800 border-indigo-100";
+                                                    } else if (val === "tidak_melaksanakan") {
+                                                      statusText = "❌ Tidak Shalat";
+                                                      statusColor = "bg-rose-50 text-rose-700 border-rose-100";
+                                                    }
+
+                                                    return (
+                                                      <div key={item.key} className="flex justify-between items-center text-[10.5px] border-b border-slate-100 pb-1">
+                                                        <span className="font-semibold text-slate-600">{item.label}</span>
+                                                        <span className={`px-2 py-0.5 rounded-full text-[8.5px] font-bold border ${statusColor}`}>
+                                                          {statusText}
+                                                        </span>
+                                                      </div>
+                                                    );
+                                                  })}
+                                                </div>
                                               </div>
                                               <div className="text-[10px] text-slate-600 mt-2 space-y-1">
                                                 <p className="flex justify-between border-b border-dashed pb-0.5">
@@ -3237,8 +4031,8 @@ export default function App() {
                                         </div>
 
                                         {/* Verification & Action Row */}
-                                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-50 border border-slate-200/80 p-3.5 rounded-2xl mt-1 shrink-0">
-                                          <div className="text-[11px] text-slate-500">
+                                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-50 border border-slate-200/80 p-3.5 rounded-2xl mt-1 shrink-0 font-sans">
+                                          <div className="text-[11px] text-slate-500 flex-1">
                                             <span className="font-bold text-slate-700 block">Status Persetujuan Ganda:</span>
                                             <div className="flex items-center gap-3 mt-1 font-semibold">
                                               <span className="flex items-center gap-1.5">
@@ -3254,28 +4048,86 @@ export default function App() {
                                                 <span>Wali Kelas:</span>
                                                 {log.teacherApproved ? (
                                                   <span className="text-sky-700 bg-sky-50 px-1.5 py-0.5 rounded-md flex items-center gap-0.5 text-[9px]">✓ Terverifikasi</span>
+                                                ) : log.rejectedByTeacher ? (
+                                                  <span className="text-rose-700 bg-rose-50 px-1.5 py-0.5 rounded-md text-[9px] font-extrabold flex items-center gap-0.5">✗ Ditolak</span>
                                                 ) : (
                                                   <span className="text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded-md text-[9px]">⚠ Belum</span>
                                                 )}
                                               </span>
                                             </div>
+                                            {log.rejectedByTeacher && log.rejectionReason && (
+                                              <p className="text-[10px] text-rose-600 font-bold mt-2 bg-rose-50 border border-rose-100 p-2 rounded-xl">
+                                                Alasan Penolakan: <span className="font-semibold text-rose-800">{log.rejectionReason}</span>
+                                              </p>
+                                            )}
                                           </div>
                                           
                                           <div className="sm:min-w-[280px]">
                                             {isGuru ? (
-                                              <button
-                                                onClick={() => handleApproveByTeacher(log.id)}
-                                                className={`w-full py-2.5 px-5 rounded-xl font-bold flex items-center justify-center gap-1.5 transition text-[11px] cursor-pointer ${
-                                                  log.teacherApproved 
-                                                    ? "bg-amber-100 hover:bg-amber-200 text-amber-800 border border-amber-300 shadow-sm" 
-                                                    : "bg-sky-800 hover:bg-blue-900 text-white shadow-md hover:-translate-y-0.5"
-                                                }`}
-                                              >
-                                                <CheckCircle2 className="w-4 h-4" />
-                                                <span>
-                                                  {log.teacherApproved ? "Batalkan Verifikasi Wali Kelas" : "Verifikasi & Setujui Lembar Mutaba'ah"}
-                                                </span>
-                                              </button>
+                                              <div className="flex flex-col gap-2 w-full">
+                                                <button
+                                                  onClick={() => handleApproveByTeacher(log.id)}
+                                                  className={`w-full py-2.5 px-5 rounded-xl font-bold flex items-center justify-center gap-1.5 transition text-[11px] cursor-pointer ${
+                                                    log.teacherApproved 
+                                                      ? "bg-amber-100 hover:bg-amber-200 text-amber-800 border border-amber-300 shadow-sm" 
+                                                      : "bg-sky-800 hover:bg-blue-900 text-white shadow-md hover:-translate-y-0.5"
+                                                  }`}
+                                                >
+                                                  <CheckCircle2 className="w-4 h-4" />
+                                                  <span>
+                                                    {log.teacherApproved ? "Batalkan Verifikasi Wali Kelas" : "Verifikasi & Setujui Lembar Mutaba'ah"}
+                                                  </span>
+                                                </button>
+
+                                                {!log.teacherApproved && (
+                                                  <div className="w-full">
+                                                    {rejectingLogId === log.id ? (
+                                                      <div className="bg-slate-100 p-3 rounded-2xl border border-slate-200/80 mt-1.5 flex flex-col gap-2">
+                                                        <label className="text-[10px] font-extrabold text-slate-700">Tulis Alasan Penolakan:</label>
+                                                        <input
+                                                          type="text"
+                                                          value={rejectionReasonInput}
+                                                          onChange={(e) => setRejectionReasonInput(e.target.value)}
+                                                          placeholder="Contoh: Bukti transfer belum diunggah atau data hafalan salah..."
+                                                          className="w-full p-2 border border-slate-300 rounded-lg text-xs bg-white text-slate-800 focus:ring-1 focus:ring-rose-500 focus:border-rose-500 font-medium"
+                                                        />
+                                                        <div className="flex gap-2">
+                                                          <button
+                                                            onClick={() => {
+                                                              handleRejectByTeacher(log.id, rejectionReasonInput);
+                                                              setRejectingLogId(null);
+                                                              setRejectionReasonInput("");
+                                                            }}
+                                                            className="flex-1 bg-rose-600 hover:bg-rose-700 text-white font-bold py-1.5 px-3 rounded-lg text-[10px] cursor-pointer transition shadow"
+                                                          >
+                                                            Kirim Penolakan
+                                                          </button>
+                                                          <button
+                                                            onClick={() => {
+                                                              setRejectingLogId(null);
+                                                              setRejectionReasonInput("");
+                                                            }}
+                                                            className="bg-slate-300 hover:bg-slate-400 text-slate-700 font-bold py-1.5 px-3 rounded-lg text-[10px] cursor-pointer transition"
+                                                          >
+                                                            Batal
+                                                          </button>
+                                                        </div>
+                                                      </div>
+                                                    ) : (
+                                                      <button
+                                                        onClick={() => {
+                                                          setRejectingLogId(log.id);
+                                                          setRejectionReasonInput("");
+                                                        }}
+                                                        className="w-full mt-1 py-2 px-5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-xl font-bold flex items-center justify-center gap-1.5 transition text-[11px] cursor-pointer"
+                                                      >
+                                                        <XCircle className="w-4 h-4 text-rose-600" />
+                                                        <span>Tolak Laporan (Minta Isi Ulang)</span>
+                                                      </button>
+                                                    )}
+                                                  </div>
+                                                )}
+                                              </div>
                                             ) : (
                                               <button
                                                 onClick={() => handleApproveByParent(log.id)}
@@ -3306,6 +4158,13 @@ export default function App() {
                       );
                     } else {
                       // Student (Siswa) or Admin view: Standard checklist submission layout
+                      const activeStudentIdForForm = currentUser?.role === "siswa" ? currentUser.id : selectedStudentId;
+                      const activeLogForDate = historyLogs.find(
+                        (log) => log.studentId === activeStudentIdForForm && log.date === tanggalMutabaah
+                      );
+                      const isAlreadySubmitted = !!(activeLogForDate && !activeLogForDate.rejectedByTeacher);
+                      const isRejected = !!(activeLogForDate && activeLogForDate.rejectedByTeacher);
+
                       return (
                         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
                           
@@ -3378,11 +4237,23 @@ export default function App() {
                                     d.setDate(d.getDate() - 2);
                                     return d.toISOString().split("T")[0];
                                   })()}
-                                  max={new Date().toISOString().split("T")[0]}
-                                  onChange={(e) => setTanggalMutabaah(e.target.value)}
+                                  max={(() => {
+                                    const d = new Date();
+                                    d.setDate(d.getDate() - 1);
+                                    return d.toISOString().split("T")[0];
+                                  })()}
+                                  onChange={(e) => {
+                                    const val = e.target.value;
+                                    const todayStr = new Date().toISOString().split("T")[0];
+                                    if (val === todayStr) {
+                                      triggerToast("Laporan mutaba'ah untuk hari ini belum bisa diisi.");
+                                      return;
+                                    }
+                                    setTanggalMutabaah(val);
+                                  }}
                                   className="w-full p-2 border border-slate-300 rounded-xl bg-white text-blue-950 font-semibold focus:ring-2 focus:ring-sky-500 text-xs"
                                 />
-                                <p className="text-[10px] text-slate-500 mt-1">Maksimal mundur 2 hari saja</p>
+                                <p className="text-[10px] text-slate-500 mt-1">Bisa mengisi untuk kemarin (H-1) & 2 hari lalu (H-2). Hari ini belum dibuka.</p>
                               </div>
 
                               <div className="flex flex-col justify-center bg-white border border-slate-200 p-2.5 rounded-xl text-center shadow-sm">
@@ -3395,6 +4266,43 @@ export default function App() {
                                 </span>
                               </div>
                             </div>
+
+                            {isAlreadySubmitted && (
+                              <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 flex items-start gap-3 shadow-sm animate-fadeIn">
+                                <div className="w-8 h-8 bg-emerald-100 rounded-full flex items-center justify-center text-emerald-600 shrink-0">
+                                  <CheckCircle2 className="w-5 h-5" />
+                                </div>
+                                <div className="text-xs">
+                                  <h4 className="font-bold text-emerald-950 font-display">Laporan Sudah Terkirim (Selesai)</h4>
+                                  <p className="text-[11px] text-emerald-800 leading-relaxed mt-0.5">
+                                    Alhamdulillah, laporan mutaba'ah harian untuk tanggal <strong className="text-emerald-950 font-extrabold">{new Date(tanggalMutabaah).toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</strong> sudah berhasil dikirim sebelumnya. Setiap tanggal hanya diperbolehkan satu kali submit.
+                                  </p>
+                                </div>
+                              </div>
+                            )}
+
+                            {isRejected && (
+                              <div className="bg-rose-50 border border-rose-200 rounded-2xl p-4 flex items-start gap-3 shadow-sm animate-fadeIn">
+                                <div className="w-8 h-8 bg-rose-100 rounded-full flex items-center justify-center text-rose-600 shrink-0">
+                                  <X className="w-5 h-5" />
+                                </div>
+                                <div className="text-xs flex-1">
+                                  <h4 className="font-bold text-rose-950 font-display text-[12px] uppercase tracking-wide">Laporan Perlu Direvisi (Ditolak Guru)</h4>
+                                  <p className="text-[11px] text-rose-800 leading-relaxed mt-0.5 font-medium">
+                                    Laporan mutaba'ah harian untuk tanggal <strong className="text-rose-950 font-bold">{new Date(tanggalMutabaah).toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</strong> perlu diisi ulang karena ditolak oleh Wali Kelas.
+                                  </p>
+                                  {activeLogForDate?.rejectionReason && (
+                                    <div className="mt-2 p-2.5 bg-white/80 border border-rose-200 rounded-xl text-[10.5px] text-rose-900 leading-relaxed font-medium">
+                                      <strong className="text-rose-950 font-bold block">Alasan Penolakan Wali Kelas:</strong>
+                                      {activeLogForDate.rejectionReason}
+                                    </div>
+                                  )}
+                                  <p className="text-[10px] text-rose-700 mt-2 italic font-medium">
+                                    * Silakan perbaiki isian checklist Anda di bawah ini dan klik tombol kirim di bawah untuk memperbarui laporan Anda.
+                                  </p>
+                                </div>
+                              </div>
+                            )}
 
                             {/* Shalat Wajib Checklist */}
                             <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200/60 flex flex-col gap-3">
@@ -3442,7 +4350,9 @@ export default function App() {
                                             ? 'bg-sky-50/70 border-sky-400' 
                                             : currentVal === "munfarid"
                                               ? 'bg-indigo-50/70 border-indigo-400'
-                                              : 'bg-white border-slate-200'
+                                              : currentVal === "tidak_melaksanakan"
+                                                ? 'bg-rose-50/70 border-rose-400'
+                                                : 'bg-white border-slate-200'
                                       }`}
                                     >
                                       <span className="text-[9px] text-sky-700 font-mono font-bold leading-none">{item.time}</span>
@@ -3461,8 +4371,8 @@ export default function App() {
                                           }}
                                           className={`py-1 px-0.5 rounded text-center font-bold transition border cursor-pointer ${
                                             !isHaidh && currentVal === "berjamaah"
-                                              ? "bg-sky-600 text-white border-sky-700 font-extrabold shadow-sm"
-                                              : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
+                                              ? "bg-sky-600 text-white border-sky-700 font-extrabold shadow-sm text-[8.5px]"
+                                              : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50 text-[8.5px]"
                                           } disabled:opacity-40 disabled:cursor-not-allowed`}
                                         >
                                           🕌 Jama'ah
@@ -3479,11 +4389,29 @@ export default function App() {
                                           }}
                                           className={`py-1 px-0.5 rounded text-center font-bold transition border cursor-pointer ${
                                             !isHaidh && currentVal === "munfarid"
-                                              ? "bg-indigo-600 text-white border-indigo-700 font-extrabold shadow-sm"
-                                              : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
+                                              ? "bg-indigo-600 text-white border-indigo-700 font-extrabold shadow-sm text-[8.5px]"
+                                              : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50 text-[8.5px]"
                                           } disabled:opacity-40 disabled:cursor-not-allowed`}
                                         >
                                           👤 Munfarid
+                                        </button>
+                                        <button
+                                          type="button"
+                                          disabled={isHaidh}
+                                          onClick={() => {
+                                            if (isHaidh) return;
+                                            setShalatWajib({ 
+                                              ...shalatWajib, 
+                                              [item.key]: currentVal === "tidak_melaksanakan" ? "" : "tidak_melaksanakan" 
+                                            });
+                                          }}
+                                          className={`py-1 px-0.5 rounded text-center font-bold transition border cursor-pointer ${
+                                            !isHaidh && currentVal === "tidak_melaksanakan"
+                                              ? "bg-rose-600 text-white border-rose-700 font-extrabold shadow-sm text-[8px]"
+                                              : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50 text-[8px]"
+                                          } disabled:opacity-40 disabled:cursor-not-allowed`}
+                                        >
+                                          ❌ Tidak Shalat
                                         </button>
                                       </div>
                                     </div>
@@ -3604,7 +4532,7 @@ export default function App() {
                                       type="radio"
                                       name="tilawah_status"
                                       checked={tilawah.surah !== "Tidak membaca"}
-                                      onChange={() => setTilawah({ ...tilawah, surah: "An-Naba'", ayat: "1-10", juz: "30" })}
+                                      onChange={() => setTilawah({ ...tilawah, surah: "An-Naba'", surahEnd: "An-Naba'", customSurah: "", customSurahEnd: "", ayat: "1-10", juz: "30", juzEnd: "30" })}
                                       className="text-sky-600 focus:ring-sky-500 w-3.5 h-3.5 cursor-pointer"
                                     />
                                     <span>Membaca</span>
@@ -3614,7 +4542,7 @@ export default function App() {
                                       type="radio"
                                       name="tilawah_status"
                                       checked={tilawah.surah === "Tidak membaca"}
-                                      onChange={() => setTilawah({ ...tilawah, surah: "Tidak membaca", ayat: "", juz: "30" })}
+                                      onChange={() => setTilawah({ ...tilawah, surah: "Tidak membaca", surahEnd: "Tidak membaca", customSurah: "", customSurahEnd: "", ayat: "", juz: "30", juzEnd: "30" })}
                                       className="text-pink-600 focus:ring-pink-500 w-3.5 h-3.5 cursor-pointer"
                                     />
                                     <span>Tidak membaca</span>
@@ -3623,60 +4551,114 @@ export default function App() {
                               </div>
 
                               {tilawah.surah !== "Tidak membaca" && (
-                                <div className="grid grid-cols-1 md:grid-cols-3 gap-3 animate-fadeIn mt-1">
-                                  <div>
-                                    <label className="block text-slate-500 text-[10px] font-bold mb-1">Nama Surat</label>
-                                    <select
-                                      value={tilawah.surah}
-                                      onChange={(e) => {
-                                        const val = e.target.value;
-                                        setTilawah({ 
-                                          ...tilawah, 
-                                          surah: val,
-                                          ayat: val === "Tidak membaca" ? "" : tilawah.ayat
-                                        });
-                                      }}
-                                      className="w-full p-2 border border-slate-300 rounded-xl bg-white text-slate-800 focus:outline-none focus:ring-1 focus:ring-sky-500 font-semibold"
-                                    >
-                                      {SURAH_LIST.filter(s => s !== "Tidak membaca").map((s) => (
-                                        <option key={s} value={s}>{s}</option>
-                                      ))}
-                                    </select>
+                                <div className="space-y-3 mt-1 animate-fadeIn">
+                                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                    <div>
+                                      <label className="block text-slate-500 text-[10px] font-bold mb-1">Dari Surat</label>
+                                      <select
+                                        value={tilawah.surah}
+                                        onChange={(e) => {
+                                          const val = e.target.value;
+                                          setTilawah({ 
+                                            ...tilawah, 
+                                            surah: val,
+                                            surahEnd: tilawah.surahEnd === "Tidak membaca" || tilawah.surahEnd === tilawah.surah ? val : tilawah.surahEnd
+                                          });
+                                        }}
+                                        className="w-full p-2 border border-slate-300 rounded-xl bg-white text-slate-800 focus:outline-none focus:ring-1 focus:ring-sky-500 font-semibold text-xs"
+                                      >
+                                        {SURAH_LIST.filter(s => s !== "Tidak membaca").map((s) => (
+                                          <option key={s} value={s}>{s}</option>
+                                        ))}
+                                      </select>
+                                    </div>
+                                    <div>
+                                      <label className="block text-slate-500 text-[10px] font-bold mb-1">Sampai Surat</label>
+                                      <select
+                                        value={tilawah.surahEnd || tilawah.surah}
+                                        onChange={(e) => {
+                                          setTilawah({ 
+                                            ...tilawah, 
+                                            surahEnd: e.target.value
+                                          });
+                                        }}
+                                        className="w-full p-2 border border-slate-300 rounded-xl bg-white text-slate-800 focus:outline-none focus:ring-1 focus:ring-sky-500 font-semibold text-xs"
+                                      >
+                                        {SURAH_LIST.filter(s => s !== "Tidak membaca").map((s) => (
+                                          <option key={s} value={s}>{s}</option>
+                                        ))}
+                                      </select>
+                                    </div>
                                   </div>
-                                  <div>
-                                    <label className="block text-slate-500 text-[10px] font-bold mb-1">Ayat</label>
-                                    <input
-                                      type="text"
-                                      placeholder="Contoh: 1-10"
-                                      value={tilawah.ayat}
-                                      onChange={(e) => setTilawah({ ...tilawah, ayat: e.target.value })}
-                                      className="w-full p-2 border border-slate-300 rounded-xl bg-white text-slate-800 text-center focus:outline-none focus:ring-1 focus:ring-sky-500 font-semibold"
-                                    />
-                                  </div>
-                                  <div>
-                                    <label className="block text-slate-500 text-[10px] font-bold mb-1">Juz</label>
-                                    <select
-                                      value={tilawah.juz}
-                                      onChange={(e) => setTilawah({ ...tilawah, juz: e.target.value })}
-                                      className="w-full p-2 border border-slate-300 rounded-xl bg-white text-slate-800 text-center focus:outline-none focus:ring-1 focus:ring-sky-500 font-semibold"
-                                    >
-                                      {Array.from({ length: 30 }, (_, i) => i + 1).map((num) => (
-                                        <option key={num} value={num.toString()}>Juz {num}</option>
-                                      ))}
-                                    </select>
+
+                                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                                    <div>
+                                      <label className="block text-slate-500 text-[10px] font-bold mb-1">Dari Juz</label>
+                                      <select
+                                        value={tilawah.juz}
+                                        onChange={(e) => {
+                                          const val = e.target.value;
+                                          setTilawah({ 
+                                            ...tilawah, 
+                                            juz: val,
+                                            juzEnd: parseInt(tilawah.juzEnd) < parseInt(val) ? val : tilawah.juzEnd
+                                          });
+                                        }}
+                                        className="w-full p-2 border border-slate-300 rounded-xl bg-white text-slate-800 focus:outline-none focus:ring-1 focus:ring-sky-500 font-semibold text-xs"
+                                      >
+                                        {Array.from({ length: 30 }, (_, i) => i + 1).map((num) => (
+                                          <option key={num} value={num.toString()}>Juz {num}</option>
+                                        ))}
+                                      </select>
+                                    </div>
+                                    <div>
+                                      <label className="block text-slate-500 text-[10px] font-bold mb-1">Sampai Juz</label>
+                                      <select
+                                        value={tilawah.juzEnd || tilawah.juz}
+                                        onChange={(e) => setTilawah({ ...tilawah, juzEnd: e.target.value })}
+                                        className="w-full p-2 border border-slate-300 rounded-xl bg-white text-slate-800 focus:outline-none focus:ring-1 focus:ring-sky-500 font-semibold text-xs"
+                                      >
+                                        {Array.from({ length: 30 }, (_, i) => i + 1).map((num) => (
+                                          <option key={num} value={num.toString()}>Juz {num}</option>
+                                        ))}
+                                      </select>
+                                    </div>
+                                    <div>
+                                      <label className="block text-slate-500 text-[10px] font-bold mb-1">Ayat</label>
+                                      <input
+                                        type="text"
+                                        placeholder="Contoh: 1-10"
+                                        value={tilawah.ayat}
+                                        onChange={(e) => setTilawah({ ...tilawah, ayat: e.target.value })}
+                                        className="w-full p-2 border border-slate-300 rounded-xl bg-white text-slate-800 text-center focus:outline-none focus:ring-1 focus:ring-sky-500 font-semibold text-xs"
+                                      />
+                                    </div>
                                   </div>
                                 </div>
                               )}
 
                               {tilawah.surah === "Lainnya (Ketik Manual)" && (
                                 <div className="mt-1 animate-fadeIn">
-                                  <label className="block text-slate-500 text-[10px] font-bold mb-1">Ketik Nama Surat:</label>
+                                  <label className="block text-slate-500 text-[10px] font-bold mb-1">Ketik Nama Surat Mulai:</label>
                                   <input
                                     type="text"
                                     placeholder="Masukkan nama surat manual"
                                     value={tilawah.customSurah}
                                     onChange={(e) => setTilawah({ ...tilawah, customSurah: e.target.value })}
-                                    className="w-full p-2 border border-slate-300 rounded-xl bg-white text-slate-800 focus:outline-none focus:ring-1 focus:ring-sky-500"
+                                    className="w-full p-2 border border-slate-300 rounded-xl bg-white text-slate-800 focus:outline-none focus:ring-1 focus:ring-sky-500 text-xs"
+                                  />
+                                </div>
+                              )}
+
+                              {tilawah.surahEnd === "Lainnya (Ketik Manual)" && (
+                                <div className="mt-1 animate-fadeIn">
+                                  <label className="block text-slate-500 text-[10px] font-bold mb-1">Ketik Nama Surat Akhir:</label>
+                                  <input
+                                    type="text"
+                                    placeholder="Masukkan nama surat manual"
+                                    value={tilawah.customSurahEnd || ""}
+                                    onChange={(e) => setTilawah({ ...tilawah, customSurahEnd: e.target.value })}
+                                    className="w-full p-2 border border-slate-300 rounded-xl bg-white text-slate-800 focus:outline-none focus:ring-1 focus:ring-sky-500 text-xs"
                                   />
                                 </div>
                               )}
@@ -3974,13 +4956,27 @@ export default function App() {
                               )}
                             </div>
 
-                            <button
-                              onClick={handleDailySubmit}
-                              disabled={submitting}
-                              className="w-full bg-blue-900 hover:bg-blue-900 text-white font-display font-bold py-3.5 px-4 rounded-xl flex items-center justify-center gap-2 transition shadow-md cursor-pointer text-[13px]"
-                            >
-                              {submitting ? "Mengirim ke API server..." : "Kirim Data Mutaba'ah Hari Ini"}
-                            </button>
+                            {isAlreadySubmitted ? (
+                              <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 flex flex-col items-center justify-center text-center gap-2.5 shadow-sm animate-fadeIn">
+                                <div className="w-10 h-10 bg-emerald-100 rounded-full flex items-center justify-center text-emerald-600">
+                                  <CheckCircle2 className="w-6 h-6" />
+                                </div>
+                                <div>
+                                  <h4 className="font-bold text-emerald-950 font-display text-xs md:text-sm uppercase tracking-wide">Laporan Berhasil Disubmit</h4>
+                                  <p className="text-[11px] text-emerald-800 font-medium mt-1 max-w-sm">
+                                    Laporan mutaba'ah tanggal {new Date(tanggalMutabaah).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })} sudah lengkap dan aman. Tidak perlu mengisi ulang.
+                                  </p>
+                                </div>
+                              </div>
+                            ) : (
+                              <button
+                                onClick={handleDailySubmit}
+                                disabled={submitting}
+                                className="w-full bg-blue-900 hover:bg-blue-900 text-white font-display font-bold py-3.5 px-4 rounded-xl flex items-center justify-center gap-2 transition shadow-md cursor-pointer text-[13px]"
+                              >
+                                {submitting ? "Mengirim ke API server..." : "Kirim Data Mutaba'ah Hari Ini"}
+                              </button>
+                            )}
                           </div>
 
                           {/* Results / Live API Feedback */}
@@ -4054,7 +5050,7 @@ export default function App() {
                     <div>
                       <h2 className="text-xl md:text-2xl font-display font-bold text-blue-950 flex items-center gap-2.5">
                         <FileText className="w-6 h-6 text-sky-600" />
-                        5. Rekapitulasi Rapor Mutaba'ah & AI Evaluator
+                        Rekapitulasi Rapor Mutaba'ah & AI Evaluator
                       </h2>
                       <p className="text-xs md:text-sm text-slate-600 mt-1 leading-relaxed">
                         Pilih jenis rekapitulasi, saring berdasarkan status verifikasi, dan cetak laporan resmi berformat A4 yang diperkaya dengan analisis kepengasuhan AI Gemini.
@@ -4465,9 +5461,9 @@ export default function App() {
                               <YayasanMuhajirienLogo className="w-11 h-11" customSrc={customYayasanLogo} />
                             </div>
                             <div>
-                              <h4 className="text-xs md:text-sm font-bold uppercase tracking-wide text-blue-950 leading-none">YAYASAN WAQAF AL MUHAJIRIEN / YPI AL AZHAR</h4>
-                              <p className="text-[10px] font-bold text-slate-700 mt-1">SMP Islam Al Azhar 9 Bekasi</p>
-                              <span className="text-[8px] text-slate-400 font-mono block mt-0.5 font-semibold">Jl. Kemang Pratama Raya, Bekasi Barat</span>
+                              <h4 className="text-xs md:text-sm font-bold uppercase tracking-wide text-blue-950 leading-none">{schoolProfile.yayasan}</h4>
+                              <p className="text-[10px] font-bold text-slate-700 mt-1">{schoolProfile.name}</p>
+                              <span className="text-[8px] text-slate-400 font-mono block mt-0.5 font-semibold">{schoolProfile.address} | Telp: {schoolProfile.phone} | NPSN: {schoolProfile.npsn}</span>
                             </div>
                           </div>
                           <div className="text-right">
@@ -4522,23 +5518,23 @@ export default function App() {
                                 </thead>
                                 <tbody>
                                   <tr className="bg-white">
-                                    <td className="border border-slate-300 p-2 font-semibold">🕌 Shalat Wajib 5 Waktu</td>
+                                    <td className="border border-slate-300 p-2 font-semibold">🔑 Shalat Wajib 5 Waktu</td>
                                     <td className="border border-slate-300 p-2 text-center">{compiledStats.daysLogged * 5} Waktu</td>
                                     <td className="border border-slate-300 p-2 text-center font-bold">
                                       {compiledStats.shalatWajibDone}/{compiledStats.daysLogged * 5} ({Math.round((compiledStats.shalatWajibDone / (compiledStats.daysLogged * 5)) * 100)}%)
                                     </td>
                                     <td className="border border-slate-300 p-2 text-center font-mono font-bold text-sky-800">
-                                      {compiledStats.shalatWajibDone * 10} Poin
+                                      {compiledStats.fardhuPointsTotal} Poin
                                     </td>
                                   </tr>
                                   <tr className="bg-slate-50/50">
-                                    <td className="border border-slate-300 p-2 font-semibold">🌅 Shalat Dhuha & Tahajud</td>
-                                    <td className="border border-slate-300 p-2 text-center">{compiledStats.daysLogged * 2} Kali</td>
+                                    <td className="border border-slate-300 p-2 font-semibold">🌅 Shalat Dhuha, Tahajud & Rawatib</td>
+                                    <td className="border border-slate-300 p-2 text-center">Aktif Harian</td>
                                     <td className="border border-slate-300 p-2 text-center font-bold">
-                                      Dhuha: {compiledStats.dhuhaCount}x, Tahajud: {compiledStats.tahajudCount}x
+                                      Dhuha: {compiledStats.dhuhaCount}x, Tahajud: {compiledStats.tahajudCount}x, Rawatib: {compiledStats.rawatibCount}x
                                     </td>
                                     <td className="border border-slate-300 p-2 text-center font-mono font-bold text-sky-800">
-                                      {compiledStats.dhuhaCount * 15 + compiledStats.tahajudCount * 20} Poin
+                                      {compiledStats.sunnahPointsTotal + compiledStats.rawatibPointsTotal} Poin
                                     </td>
                                   </tr>
                                   <tr className="bg-white">
@@ -4548,17 +5544,17 @@ export default function App() {
                                       {compiledStats.tilawahDays}/{compiledStats.daysLogged} Hari Membaca
                                     </td>
                                     <td className="border border-slate-300 p-2 text-center font-mono font-bold text-sky-800">
-                                      {compiledStats.tilawahDays * 20} Poin
+                                      {compiledStats.tilawahPointsTotal} Poin
                                     </td>
                                   </tr>
                                   <tr className="bg-slate-50/50">
-                                    <td className="border border-slate-300 p-2 font-semibold">🛌 Pola Tidur Sehat (&lt; 22:00)</td>
+                                    <td className="border border-slate-300 p-2 font-semibold">🛌 Pola Tidur Sehat (&lt; 22:00 &amp; Bangun Pagi)</td>
                                     <td className="border border-slate-300 p-2 text-center">{compiledStats.daysLogged} Hari</td>
                                     <td className="border border-slate-300 p-2 text-center font-bold">
                                       {compiledStats.sleepTimeCount}/{compiledStats.daysLogged} Hari Teratur
                                     </td>
                                     <td className="border border-slate-300 p-2 text-center font-mono font-bold text-sky-800">
-                                      {compiledStats.sleepTimeCount * 15} Poin
+                                      {compiledStats.tidurPointsTotal} Poin
                                     </td>
                                   </tr>
                                   <tr className="bg-white">
@@ -4568,7 +5564,7 @@ export default function App() {
                                       {compiledStats.birrulCount} Kegiatan Terlaporkan
                                     </td>
                                     <td className="border border-slate-300 p-2 text-center font-mono font-bold text-sky-800">
-                                      {compiledStats.birrulCount * 10} Poin
+                                      {compiledStats.birrulPointsTotal} Poin
                                     </td>
                                   </tr>
                                   <tr className="bg-slate-50/50">
@@ -4578,7 +5574,7 @@ export default function App() {
                                       {compiledStats.infaqCount}/{compiledStats.daysLogged} Hari (Rp {compiledStats.infaqTotalAmount.toLocaleString("id-ID")})
                                     </td>
                                     <td className="border border-slate-300 p-2 text-center font-mono font-bold text-sky-800">
-                                      {compiledStats.infaqCount * 15} Poin
+                                      {compiledStats.infaqPointsTotal} Poin
                                     </td>
                                   </tr>
                                 </tbody>
@@ -4624,8 +5620,8 @@ export default function App() {
                           </div>
                           <div>
                             <p className="text-slate-500 mb-8 font-medium">Mengetahui, Kepala Sekolah</p>
-                            <p className="font-bold border-b border-slate-800 pb-0.5 mx-3">H. Amril, S.Ag, M.Pd</p>
-                            <span className="text-[8px] text-slate-400 block font-mono">NIP. 1971030519980310</span>
+                            <p className="font-bold border-b border-slate-800 pb-0.5 mx-3">{schoolProfile.principal}</p>
+                            <span className="text-[8px] text-slate-400 block font-mono">NIP. {schoolProfile.principalNip}</span>
                           </div>
                         </div>
 
@@ -4637,16 +5633,143 @@ export default function App() {
 
               {/* 7. SCHOOL LOGO SETTINGS TAB (Admin Only) */}
               {opTab === "logos" && currentUser?.role === "admin" && (
-                <div className="bg-white rounded-3xl border border-slate-200 p-6 md:p-8 flex flex-col gap-6 shadow-sm animate-fade-in">
+                <div className="bg-white rounded-3xl border border-slate-200 p-6 md:p-8 flex flex-col gap-8 shadow-sm animate-fade-in">
                   
                   {/* Tab Title */}
                   <div className="border-b border-slate-100 pb-5">
                     <h2 className="text-xl md:text-2xl font-display font-bold text-blue-950 flex items-center gap-2.5">
                       <Settings className="w-6 h-6 text-sky-600 animate-spin-slow" />
-                      Pengaturan Logo Kustom Sekolah & Yayasan
+                      Identitas Resmi & Pengaturan Logo Sekolah
                     </h2>
                     <p className="text-xs text-slate-500 mt-1.5 leading-relaxed max-w-3xl">
-                      Ganti logo default dengan logo kustom institusi Anda secara manual. Perubahan ini akan otomatis diperbarui secara dinamis di seluruh sistem, termasuk Header Portal, Dashboard Utama, Watermark Dokumen, serta cetakan resmi Rapor Mutaba'ah PDF siswa.
+                      Sesuaikan identitas resmi sekolah dan ganti logo default dengan logo kustom institusi Anda secara manual. Perubahan ini akan otomatis diperbarui secara dinamis di seluruh sistem, termasuk Header Portal, Dashboard Utama, Watermark Dokumen, serta cetakan resmi Rapor Mutaba'ah PDF siswa.
+                    </p>
+                  </div>
+
+                  {/* FORM IDENTITAS SEKOLAH */}
+                  <form onSubmit={handleSaveSchoolProfile} className="bg-slate-50 border border-slate-200 rounded-2xl p-5 md:p-6 flex flex-col gap-5">
+                    <div className="border-b border-slate-200 pb-3">
+                      <h3 className="font-display font-bold text-blue-950 text-sm flex items-center gap-2">
+                        <School className="w-4.5 h-4.5 text-sky-600" />
+                        Formulir Profil & Identitas Sekolah
+                      </h3>
+                      <p className="text-slate-500 text-[10.5px] mt-0.5">
+                        Ubah data resmi instansi secara manual untuk diletakkan pada kop laporan dan tanda tangan surat.
+                      </p>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {/* Nama Sekolah */}
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-700 uppercase tracking-wider mb-1">Nama Resmi Sekolah</label>
+                        <input
+                          type="text"
+                          required
+                          value={profileForm.name}
+                          onChange={(e) => setProfileForm({ ...profileForm, name: e.target.value })}
+                          className="w-full bg-white border border-slate-300 rounded-xl px-3 py-1.5 text-xs focus:ring-2 focus:ring-sky-500 focus:outline-none font-medium text-slate-800"
+                          placeholder="SMP Islam Al Azhar 9 Bekasi"
+                        />
+                      </div>
+
+                      {/* Nama Yayasan */}
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-700 uppercase tracking-wider mb-1">Nama Yayasan / Instansi Induk</label>
+                        <input
+                          type="text"
+                          required
+                          value={profileForm.yayasan}
+                          onChange={(e) => setProfileForm({ ...profileForm, yayasan: e.target.value })}
+                          className="w-full bg-white border border-slate-300 rounded-xl px-3 py-1.5 text-xs focus:ring-2 focus:ring-sky-500 focus:outline-none font-medium text-slate-800"
+                          placeholder="YAYASAN WAQAF AL MUHAJIRIEN / YPI AL AZHAR"
+                        />
+                      </div>
+
+                      {/* Kepala Sekolah */}
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-700 uppercase tracking-wider mb-1">Nama Kepala Sekolah</label>
+                        <input
+                          type="text"
+                          required
+                          value={profileForm.principal}
+                          onChange={(e) => setProfileForm({ ...profileForm, principal: e.target.value })}
+                          className="w-full bg-white border border-slate-300 rounded-xl px-3 py-1.5 text-xs focus:ring-2 focus:ring-sky-500 focus:outline-none font-medium text-slate-800"
+                          placeholder="H. Amril, S.Ag, M.Pd"
+                        />
+                      </div>
+
+                      {/* NIP Kepala Sekolah */}
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-700 uppercase tracking-wider mb-1">NIP Kepala Sekolah</label>
+                        <input
+                          type="text"
+                          required
+                          value={profileForm.principalNip}
+                          onChange={(e) => setProfileForm({ ...profileForm, principalNip: e.target.value })}
+                          className="w-full bg-white border border-slate-300 rounded-xl px-3 py-1.5 text-xs focus:ring-2 focus:ring-sky-500 focus:outline-none font-mono text-slate-800"
+                          placeholder="1971030519980310"
+                        />
+                      </div>
+
+                      {/* No Telepon */}
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-700 uppercase tracking-wider mb-1">No. Telepon Instansi</label>
+                        <input
+                          type="text"
+                          required
+                          value={profileForm.phone}
+                          onChange={(e) => setProfileForm({ ...profileForm, phone: e.target.value })}
+                          className="w-full bg-white border border-slate-300 rounded-xl px-3 py-1.5 text-xs focus:ring-2 focus:ring-sky-500 focus:outline-none font-mono text-slate-800"
+                          placeholder="021-82410000"
+                        />
+                      </div>
+
+                      {/* NPSN */}
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-700 uppercase tracking-wider mb-1">NPSN Sekolah</label>
+                        <input
+                          type="text"
+                          required
+                          value={profileForm.npsn}
+                          onChange={(e) => setProfileForm({ ...profileForm, npsn: e.target.value })}
+                          className="w-full bg-white border border-slate-300 rounded-xl px-3 py-1.5 text-xs focus:ring-2 focus:ring-sky-500 focus:outline-none font-mono text-slate-800"
+                          placeholder="20220301"
+                        />
+                      </div>
+
+                      {/* Alamat Lengkap */}
+                      <div className="md:col-span-2">
+                        <label className="block text-[10px] font-bold text-slate-700 uppercase tracking-wider mb-1">Alamat Lengkap Resmi</label>
+                        <textarea
+                          required
+                          rows={2}
+                          value={profileForm.address}
+                          onChange={(e) => setProfileForm({ ...profileForm, address: e.target.value })}
+                          className="w-full bg-white border border-slate-300 rounded-xl px-3 py-1.5 text-xs focus:ring-2 focus:ring-sky-500 focus:outline-none font-medium text-slate-800 leading-relaxed resize-none"
+                          placeholder="Jl. Kemang Pratama Raya, Bekasi Barat"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="flex justify-end pt-2">
+                      <button
+                        type="submit"
+                        className="bg-sky-800 hover:bg-blue-900 text-white font-bold text-xs py-2.5 px-5 rounded-xl shadow-md transition cursor-pointer flex items-center gap-1.5 shrink-0"
+                      >
+                        <Save className="w-4 h-4" />
+                        <span>Simpan Profil & Identitas Sekolah</span>
+                      </button>
+                    </div>
+                  </form>
+
+                  {/* Subtitle for Logos Upload */}
+                  <div className="border-t border-slate-100 pt-6">
+                    <h3 className="font-display font-bold text-blue-950 text-sm mb-1.5 flex items-center gap-2">
+                      <Upload className="w-4.5 h-4.5 text-sky-600" />
+                      Logo Kustom Institusi (Format Gambar)
+                    </h3>
+                    <p className="text-xs text-slate-500 mb-6">
+                      Unggah file gambar logo SMP Al Azhar dan logo Yayasan Anda untuk menggantikan logo bawaan sistem.
                     </p>
                   </div>
 
@@ -4861,36 +5984,44 @@ export default function App() {
                   <div>
                     <h2 className="text-xl md:text-2xl font-display font-bold text-blue-950 flex items-center gap-2.5">
                       <Award className="w-6 h-6 text-sky-600" />
-                      Logika Sistem Poin & Gamifikasi (Streak)
+                      Sistem Kalkulasi Poin Otomatis
                     </h2>
                     <p className="text-xs md:text-sm text-slate-600 mt-1 leading-relaxed">
-                      Sistem dirancang untuk menumbuhkan habit / kebiasaan beribadah mandiri yang konsisten melalui aturan poin yang adil serta pengganda beruntun (Streak Bonus).
+                      Sistem menghitung perolehan poin secara otomatis berdasarkan aktivitas ibadah harian yang dilaporkan oleh siswa secara transparan, tanpa bonus atau tambahan lainnya.
                     </p>
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-xs leading-relaxed">
                     <div className="border border-slate-200 rounded-2xl p-5">
-                      <h3 className="font-bold text-slate-800 text-sm mb-3">Matriks Perolehan Poin</h3>
+                      <h3 className="font-bold text-slate-800 text-sm mb-3">Matriks Perolehan Poin Resmi</h3>
                       <ul className="space-y-2 text-slate-700">
                         <li className="flex justify-between border-b pb-1.5">
-                          <span>🕌 <strong>Shalat Fardhu (5 waktu):</strong></span>
-                          <span className="font-mono font-bold text-sky-800">+10 Poin / shalat (Max 50)</span>
+                          <span>🕌 <strong>Shalat Wajib:</strong></span>
+                          <span className="font-mono font-bold text-sky-800">Berjama'ah (+7 Pts), Munfarid (+5 Pts), Haidh (+25 Pts)</span>
                         </li>
                         <li className="flex justify-between border-b pb-1.5">
-                          <span>🌅 <strong>Shalat Sunnah Dhuha:</strong></span>
-                          <span className="font-mono font-bold text-sky-800">+15 Poin</span>
-                        </li>
-                        <li className="flex justify-between border-b pb-1.5">
-                          <span>🌌 <strong>Shalat Sunnah Tahajud:</strong></span>
-                          <span className="font-mono font-bold text-sky-800">+20 Poin</span>
+                          <span>🌅 <strong>Shalat Sunnah:</strong></span>
+                          <span className="font-mono font-bold text-sky-800">Tahajud (+15 Pts), Dhuha (+5 Pts), Rawatib (+3 Pts per Rawatib)</span>
                         </li>
                         <li className="flex justify-between border-b pb-1.5">
                           <span>📖 <strong>Tilawah Al-Qur'an:</strong></span>
-                          <span className="font-mono font-bold text-sky-800">+10 Poin / Halaman (Max 40)</span>
+                          <span className="font-mono font-bold text-sky-800">+10 Poin (Membaca)</span>
                         </li>
                         <li className="flex justify-between border-b pb-1.5">
-                          <span>🛌 <strong>Tidur Malam Sehat (&lt; 22:00):</strong></span>
-                          <span className="font-mono font-bold text-sky-800">+15 Poin</span>
+                          <span>🎓 <strong>Tahfiz / Hafalan:</strong></span>
+                          <span className="font-mono font-bold text-sky-800">+10 Poin (Muroja'ah / Ziyadah)</span>
+                        </li>
+                        <li className="flex justify-between border-b pb-1.5">
+                          <span>🛌 <strong>Pola Tidur Sehat:</strong></span>
+                          <span className="font-mono font-bold text-sky-800">Tidur &lt; 22:00 (+5 Pts), Bangun &lt; 05:00 (+5 Pts)</span>
+                        </li>
+                        <li className="flex justify-between border-b pb-1.5">
+                          <span>🤝 <strong>Birrul Walidain:</strong></span>
+                          <span className="font-mono font-bold text-sky-800">+2 Poin per kegiatan membantu orang tua</span>
+                        </li>
+                        <li className="flex justify-between border-b pb-1.5">
+                          <span>💰 <strong>Infaq / Sedekah:</strong></span>
+                          <span className="font-mono font-bold text-sky-800">+1 Poin kelipatan Rp 1.000</span>
                         </li>
                       </ul>
                     </div>
@@ -4898,17 +6029,17 @@ export default function App() {
                     <div className="border border-slate-200 rounded-2xl p-5 flex flex-col justify-between">
                       <div>
                         <h3 className="font-bold text-slate-800 text-sm mb-2 flex items-center gap-1">
-                          <Flame className="w-4 h-4 text-amber-500 fill-amber-500" /> Algoritma Streak (Beruntun)
+                          <Flame className="w-4 h-4 text-amber-500 fill-amber-500" /> Aturan & Kebijakan Poin
                         </h3>
                         <p className="text-slate-600">
-                          Siswa berhak memelihara atau memperpanjang **Streak Harian** jika total perolehan poin dari mutaba'ah hari itu mencapai minimal **50 Poin** (Threshold).
+                          Setiap isian diverifikasi oleh Orang Tua atau Wali Kelas untuk keaslian data. Poin terkumpul akan langsung masuk ke portofolio rapor digital siswa.
                         </p>
                         <p className="text-slate-600 mt-2">
-                          <strong>Formula Streak Bonus:</strong> `+5 Poin` tambahan dikalikan jumlah hari beruntun saat ini (maksimal batas bonus harian `+50 Poin`). Jika dalam satu hari siswa tidak mencapai threshold atau bolong mengumpulkan checklist, streak direset ke `0`.
+                          <strong>Tanpa Poin Bonus:</strong> Sistem ini tidak menerapkan sistem streak bonus atau poin pengali lainnya. Poin murni berdasarkan amalan nyata yang diinput oleh siswa setiap hari.
                         </p>
                       </div>
                       <div className="bg-slate-50 border p-3 rounded-xl border-slate-200 text-slate-500 font-mono text-[10px] mt-4">
-                        Poin hari ini &gt;= 50 ? Streak++ & Bonus : Streak = 0
+                        Poin Harian = Shalat + Tilawah + Tahfiz + Tidur + Birrul + Infaq
                       </div>
                     </div>
                   </div>
@@ -5031,8 +6162,8 @@ export default function App() {
                     <YayasanMuhajirienLogo className="w-8 h-8" customSrc={customYayasanLogo} />
                   </div>
                   <div>
-                    <h4 className="text-[11px] font-bold uppercase tracking-wide text-blue-950 leading-none">YAYASAN WAQAF AL MUHAJIRIEN / YPI AL AZHAR</h4>
-                    <p className="text-[8px] text-slate-700 mt-1 font-semibold">SMP Islam Al Azhar 9 Bekasi</p>
+                    <h4 className="text-[11px] font-bold uppercase tracking-wide text-blue-950 leading-none">{schoolProfile.yayasan}</h4>
+                    <p className="text-[8px] text-slate-700 mt-1 font-semibold">{schoolProfile.name}</p>
                   </div>
                 </div>
                 <div className="text-right">
@@ -5075,23 +6206,23 @@ export default function App() {
                     </thead>
                     <tbody>
                       <tr>
-                        <td className="border border-slate-300 p-1.5 font-semibold">🕌 Shalat Wajib 5 Waktu</td>
+                        <td className="border border-slate-300 p-1.5 font-semibold">🔑 Shalat Wajib 5 Waktu</td>
                         <td className="border border-slate-300 p-1.5 text-center font-mono">{compiledStats.daysLogged * 5} Waktu</td>
                         <td className="border border-slate-300 p-1.5 text-center font-bold">
                           {compiledStats.shalatWajibDone}/{compiledStats.daysLogged * 5} ({Math.round((compiledStats.shalatWajibDone / (compiledStats.daysLogged * 5)) * 100)}%)
                         </td>
                         <td className="border border-slate-300 p-1.5 text-center font-mono font-bold text-sky-800">
-                          {compiledStats.shalatWajibDone * 10} Pts
+                          {compiledStats.fardhuPointsTotal} Pts
                         </td>
                       </tr>
                       <tr>
-                        <td className="border border-slate-300 p-1.5 font-semibold">🌅 Shalat Dhuha & Tahajud</td>
-                        <td className="border border-slate-300 p-1.5 text-center font-mono">{compiledStats.daysLogged * 2} Kali</td>
+                        <td className="border border-slate-300 p-1.5 font-semibold">🌅 Shalat Dhuha, Tahajud & Rawatib</td>
+                        <td className="border border-slate-300 p-1.5 text-center font-mono">Aktif</td>
                         <td className="border border-slate-300 p-1.5 text-center font-bold">
-                          Dhuha: {compiledStats.dhuhaCount}x, Tahajud: {compiledStats.tahajudCount}x
+                          Dhuha: {compiledStats.dhuhaCount}x, Tahajud: {compiledStats.tahajudCount}x, Rawatib: {compiledStats.rawatibCount}x
                         </td>
                         <td className="border border-slate-300 p-1.5 text-center font-mono font-bold text-sky-800">
-                          {compiledStats.dhuhaCount * 15 + compiledStats.tahajudCount * 20} Pts
+                          {compiledStats.sunnahPointsTotal + compiledStats.rawatibPointsTotal} Pts
                         </td>
                       </tr>
                       <tr>
@@ -5099,15 +6230,15 @@ export default function App() {
                         <td className="border border-slate-300 p-1.5 text-center font-mono">{compiledStats.daysLogged} Hari</td>
                         <td className="border border-slate-300 p-1.5 text-center font-bold">{compiledStats.tilawahDays}/{compiledStats.daysLogged} Hari</td>
                         <td className="border border-slate-300 p-1.5 text-center font-mono font-bold text-sky-800">
-                          {compiledStats.tilawahDays * 20} Pts
+                          {compiledStats.tilawahPointsTotal} Pts
                         </td>
                       </tr>
                       <tr>
-                        <td className="border border-slate-300 p-1.5 font-semibold">🛌 Pola Tidur Sehat</td>
+                        <td className="border border-slate-300 p-1.5 font-semibold">🛌 Pola Tidur Sehat (&lt; 22:00 &amp; Bangun Pagi)</td>
                         <td className="border border-slate-300 p-1.5 text-center font-mono">{compiledStats.daysLogged} Hari</td>
                         <td className="border border-slate-300 p-1.5 text-center font-bold">{compiledStats.sleepTimeCount}/{compiledStats.daysLogged} Hari</td>
                         <td className="border border-slate-300 p-1.5 text-center font-mono font-bold text-sky-800">
-                          {compiledStats.sleepTimeCount * 15} Pts
+                          {compiledStats.tidurPointsTotal} Pts
                         </td>
                       </tr>
                       <tr>
@@ -5115,7 +6246,7 @@ export default function App() {
                         <td className="border border-slate-300 p-1.5 text-center font-mono">Aktif</td>
                         <td className="border border-slate-300 p-1.5 text-center font-bold">{compiledStats.birrulCount} Kegiatan</td>
                         <td className="border border-slate-300 p-1.5 text-center font-mono font-bold text-sky-800">
-                          {compiledStats.birrulCount * 10} Pts
+                          {compiledStats.birrulPointsTotal} Pts
                         </td>
                       </tr>
                       <tr>
@@ -5125,7 +6256,7 @@ export default function App() {
                           {compiledStats.infaqCount}/{compiledStats.daysLogged} Hari (Rp {compiledStats.infaqTotalAmount.toLocaleString("id-ID")})
                         </td>
                         <td className="border border-slate-300 p-1.5 text-center font-mono font-bold text-sky-800">
-                          {compiledStats.infaqCount * 15} Pts
+                          {compiledStats.infaqPointsTotal} Pts
                         </td>
                       </tr>
                     </tbody>
@@ -5151,7 +6282,7 @@ export default function App() {
                 </div>
                 <div>
                   <p className="text-slate-400 mb-8 font-medium">Kepala Sekolah</p>
-                  <p className="font-bold border-b border-slate-800 pb-0.5 mx-2">H. Amril, S.Ag, M.Pd</p>
+                  <p className="font-bold border-b border-slate-800 pb-0.5 mx-2">{schoolProfile.principal}</p>
                 </div>
               </div>
 
@@ -5712,7 +6843,7 @@ export default function App() {
       {/* FOOTER */}
       <footer className="bg-blue-950 text-sky-200/60 border-t border-blue-900 py-6 mt-12 text-center text-xs">
         <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row justify-between items-center gap-4 font-medium">
-          <p>© 2026 SMP Islam Al Azhar 9 Bekasi. Dibuat dengan cinta untuk mencetak generasi Rabbani.</p>
+          <p>© 2026 {schoolProfile.name}. Dibuat dengan cinta untuk mencetak generasi Rabbani.</p>
           <div className="flex gap-4">
             <span className="hover:text-amber-400 transition cursor-pointer">Panduan Guru</span>
             <span>•</span>

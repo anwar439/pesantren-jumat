@@ -8,7 +8,19 @@ dotenv.config();
 const app = express();
 const PORT = 3000;
 
-app.use(express.json());
+app.use(express.json({ limit: "50mb" }));
+app.use(express.urlencoded({ limit: "50mb", extended: true }));
+
+// Handle JSON parsing or size errors gracefully as JSON responses
+app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
+  if (err instanceof SyntaxError && 'status' in err && err.status === 400 && 'body' in err) {
+    return res.status(400).json({ error: "Format JSON tidak valid." });
+  }
+  if (err && (err.type === "entity.too.large" || err.status === 413)) {
+    return res.status(413).json({ error: "Ukuran data terlalu besar. Maksimal 50MB." });
+  }
+  next(err);
+});
 
 // Initialize Gemini SDK lazily to avoid crashing on start if the key is missing
 let aiClient: GoogleGenAI | null = null;
@@ -120,15 +132,20 @@ app.post("/api/mutabaah/submit", (req, res) => {
       return res.status(400).json({ error: "Student ID and Date are required." });
     }
 
+    const todayStr = new Date().toISOString().split("T")[0];
+    if (date === todayStr) {
+      return res.status(400).json({ error: "Laporan mutaba'ah untuk hari ini belum bisa diisi (baru bisa diisi besok pagi)." });
+    }
+
     // 1. Point System Logic Calculation
     let pointsEarned = 0;
     const details: string[] = [];
 
-    // Shalat Wajib: 10 points for Berjama'ah, 5 points for Munfarid (Max 50)
+    // Shalat Wajib: 7 points for Berjama'ah, 5 points for Munfarid, 0 points for Tidak, 25 points if Haidh
     if (shalatWajib) {
       if (shalatWajib.haidh) {
-        pointsEarned += 50;
-        details.push(`Shalat Wajib: Sedang Haidh (+50 Poin)`);
+        pointsEarned += 25;
+        details.push(`Shalat Wajib: Sedang Haidh (+25 Poin)`);
       } else {
         let jamaahCount = 0;
         let munfaridCount = 0;
@@ -149,26 +166,26 @@ app.post("/api/mutabaah/submit", (req, res) => {
         checkPrayer(shalatWajib.maghrib);
         checkPrayer(shalatWajib.isya);
 
-        const shalatPoints = (jamaahCount * 10) + (munfaridCount * 5);
+        const shalatPoints = (jamaahCount * 7) + (munfaridCount * 5);
         pointsEarned += shalatPoints;
-        details.push(`Shalat Wajib: ${jamaahCount} Berjama'ah (+${jamaahCount * 10} Pts), ${munfaridCount} Munfarid (+${munfaridCount * 5} Pts)`);
+        details.push(`Shalat Wajib: ${jamaahCount} Berjama'ah (+${jamaahCount * 7} Pts), ${munfaridCount} Munfarid (+${munfaridCount * 5} Pts)`);
       }
     }
 
-    // Shalat Sunnah: Dhuha (15 pts), Tahajud (20 pts), Rawatib (5 pts each, max 25)
+    // Shalat Sunnah: Tahajjud (15 pts), Dhuha (5 pts), Rawatib (3 pts each rawatib)
     if (shalatSunnah) {
       if (shalatSunnah.haidh) {
-        pointsEarned += 18; // 30% of total 60 points
-        details.push(`Shalat Sunnah & Rawatib: Sedang Haidh (+18 Poin)`);
+        pointsEarned += 10; // Flat 10 points fallback if haidh
+        details.push(`Shalat Sunnah & Rawatib: Sedang Haidh (+10 Poin)`);
       } else {
         let sunnahPoints = 0;
         if (shalatSunnah.tahajud) {
-          sunnahPoints += 20;
-          details.push(`Shalat Tahajud (+20 Poin)`);
+          sunnahPoints += 15;
+          details.push(`Shalat Tahajud (+15 Poin)`);
         }
         if (shalatSunnah.dhuha) {
-          sunnahPoints += 15;
-          details.push(`Shalat Dhuha (+15 Poin)`);
+          sunnahPoints += 5;
+          details.push(`Shalat Dhuha (+5 Poin)`);
         }
         
         // Calculate individual Rawatib checkboxes
@@ -185,7 +202,7 @@ app.post("/api/mutabaah/submit", (req, res) => {
         }
         
         if (rawatibCount > 0) {
-          const rawatibPoints = Math.min(rawatibCount * 5, 25);
+          const rawatibPoints = rawatibCount * 3;
           sunnahPoints += rawatibPoints;
           details.push(`Shalat Rawatib: ${rawatibCount} rawatib (+${rawatibPoints} Poin)`);
         }
@@ -193,59 +210,58 @@ app.post("/api/mutabaah/submit", (req, res) => {
       }
     }
 
-    // Tilawah/Membaca Al-Qur'an
+    // Tilawah/Membaca Al-Qur'an (10 Poin if reading)
     if (tilawah) {
       if (tilawah.surah === "Tidak membaca") {
         details.push(`Membaca Al-Qur'an: Tidak membaca (0 Poin)`);
-      } else if (tilawah.surah && tilawah.ayat) {
-        pointsEarned += 20;
-        details.push(`Membaca Al-Qur'an: Surah ${tilawah.surah} Ayat ${tilawah.ayat} (Juz ${tilawah.juz || '30'}) (+20 Poin)`);
+      } else if (tilawah.surah && (tilawah.ayat || tilawah.surah !== "Tidak membaca")) {
+        pointsEarned += 10;
+        details.push(`Membaca Al-Qur'an: Surah ${tilawah.surah} (+10 Poin)`);
       } else if (tilawah.pages) {
         // Fallback for old pages format
-        const tilawahPoints = Math.min(tilawah.pages * 10, 40);
-        pointsEarned += tilawahPoints;
-        details.push(`Tilawah Al-Qur'an: ${tilawah.pages} halaman (+${tilawahPoints} Poin)`);
+        pointsEarned += 10;
+        details.push(`Tilawah Al-Qur'an: (+10 Poin)`);
       }
     }
 
-    // Hafalan Al-Qur'an
+    // Hafalan Al-Qur'an / Tahfiz (10 Poin if ziyadah or murojaah)
     if (hafalan) {
       if (hafalan.tipe === "tidak_hafalan" || hafalan.surah === "Tidak hafalan") {
         details.push(`Hafalan Al-Qur'an: Tidak hafalan (0 Poin)`);
-      } else if (hafalan.surah && hafalan.ayat) {
-        pointsEarned += 25;
+      } else if (hafalan.surah && (hafalan.tipe === "murojaah" || hafalan.tipe === "ziyadah" || hafalan.surah !== "Tidak hafalan")) {
+        pointsEarned += 10;
         const labelTipe = hafalan.tipe === "murojaah" ? "Muroja'ah" : "Ziyadah";
-        details.push(`Hafalan Al-Qur'an (${labelTipe}): Surah ${hafalan.surah} Ayat ${hafalan.ayat} (Juz ${hafalan.juz || '30'}) (+25 Poin)`);
+        details.push(`Hafalan Al-Qur'an (${labelTipe}): Surah ${hafalan.surah} (+10 Poin)`);
       }
     }
 
-    // Pola Tidur Sehat
+    // Pola Tidur Sehat: 5 Poin if tidur sebelum 22:00, 5 Poin if bangun maks jam 5
     if (polaTidur) {
       if (polaTidur.sebelum22 !== undefined || polaTidur.bangun05 !== undefined) {
         if (polaTidur.sebelum22) {
-          pointsEarned += 10;
-          details.push(`Pola Tidur Sehat: Tidur sebelum pukul 22:00 (+10 Poin)`);
+          pointsEarned += 5;
+          details.push(`Pola Tidur Sehat: Tidur sebelum pukul 22:00 (+5 Poin)`);
         }
         if (polaTidur.bangun05) {
-          pointsEarned += 10;
-          details.push(`Pola Tidur Sehat: Bangun jam 5:00 (+10 Poin)`);
+          pointsEarned += 5;
+          details.push(`Pola Tidur Sehat: Bangun jam 5:00 (+5 Poin)`);
         }
       } else if (polaTidur.sleepTime) {
         // Fallback for old format
         const [hour, minute] = polaTidur.sleepTime.split(":").map(Number);
         const isEarlySleep = hour < 22 || (hour === 22 && minute === 0);
         if (isEarlySleep) {
-          pointsEarned += 15;
-          details.push(`Pola Tidur Sehat: Tidur sebelum pukul 22:00 (+15 Poin)`);
+          pointsEarned += 5;
+          details.push(`Pola Tidur Sehat: Tidur sebelum pukul 22:00 (+5 Poin)`);
         }
       }
     }
 
-    // Birrul Walidain
+    // Birrul Walidain: 2 Poin per activity
     if (birrulWalidain && Array.isArray(birrulWalidain)) {
       // Remove placeholder "Other" and "Tidak ada" from count if present
       const cleanActivities = birrulWalidain.filter(a => a !== "Other" && a !== "Tidak ada");
-      const birrulPoints = Math.min(cleanActivities.length * 10, 40);
+      const birrulPoints = cleanActivities.length * 2;
       pointsEarned += birrulPoints;
       if (cleanActivities.length > 0) {
         details.push(`Birrul Walidain: Membantu orang tua (${cleanActivities.length} kegiatan) (+${birrulPoints} Poin)`);
@@ -254,34 +270,32 @@ app.post("/api/mutabaah/submit", (req, res) => {
       }
     }
 
-    // Infaq atau Sedekah Harian (+15 Pts)
+    // Infaq atau Sedekah Harian: 1 Poin per Rp 1.000 kelipatan
     const { infaq } = req.body;
     if (infaq) {
-      if (infaq.hasInfaq) {
-        pointsEarned += 15;
-        const amountFormatted = infaq.amount ? `Rp ${Number(infaq.amount).toLocaleString("id-ID")}` : "Tanpa Nominal";
-        const proofLabel = infaq.fileData ? "dengan bukti transfer" : "tanpa bukti transfer";
-        details.push(`Infaq/Sedekah: Berinfaq sebesar ${amountFormatted} (${proofLabel}) (+15 Poin)`);
+      if (infaq.hasInfaq && infaq.amount) {
+        const amt = parseFloat(infaq.amount.toString());
+        if (!isNaN(amt) && amt > 0) {
+          const infaqPoints = Math.floor(amt / 1000);
+          pointsEarned += infaqPoints;
+          const amountFormatted = `Rp ${amt.toLocaleString("id-ID")}`;
+          const proofLabel = infaq.fileData ? "dengan bukti transfer" : "tanpa bukti transfer";
+          details.push(`Infaq/Sedekah: Berinfaq sebesar ${amountFormatted} (${proofLabel}) (+${infaqPoints} Poin)`);
+        } else {
+          details.push(`Infaq/Sedekah: Tidak berinfaq (0 Poin)`);
+        }
       } else {
         details.push(`Infaq/Sedekah: Tidak berinfaq (0 Poin)`);
       }
     }
 
-    // 2. Streak Logic (Berturut-turut)
-    // If student successfully logs 5 main daily activities (minimum 50 total raw points today), we maintain or increment streak.
-    const eligibleForStreak = pointsEarned >= 50;
+    // 2. Streak Logic (Pure tracking, no bonus points)
+    const eligibleForStreak = pointsEarned >= 30; // lower threshold or keep simple tracking
     let nextStreak = currentStreakDays || 0;
-    let streakBonus = 0;
-
     if (eligibleForStreak) {
       nextStreak += 1;
-      // Bonus: +5 points for every day of streak (capped at +50 points bonus per day after 10 days streak)
-      streakBonus = Math.min(nextStreak * 5, 50);
-      pointsEarned += streakBonus;
-      details.push(`Streak Bonus: Day ${nextStreak} (+${streakBonus} Poin)`);
     } else {
       nextStreak = 0;
-      details.push(`Streak Terputus: Aktivitas hari ini kurang memenuhi syarat minimum (min. 50 Poin)`);
     }
 
     return res.json({
@@ -290,7 +304,7 @@ app.post("/api/mutabaah/submit", (req, res) => {
       date,
       pointsEarned,
       streakDays: nextStreak,
-      streakBonus,
+      streakBonus: 0,
       pointsBreakdown: details,
       studentName: studentName || "Siswa Al Azhar"
     });
@@ -299,6 +313,11 @@ app.post("/api/mutabaah/submit", (req, res) => {
     console.error("Submit Mutaba'ah Error:", error);
     return res.status(500).json({ error: "Gagal menyimpan data mutaba'ah: " + error.message });
   }
+});
+
+// Fallback for non-existent /api/* routes to prevent serving index.html as JSON
+app.all("/api/*", (req, res) => {
+  res.status(404).json({ error: `Rute API ${req.method} ${req.url} tidak ditemukan.` });
 });
 
 // Start Express and Vite server
