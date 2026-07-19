@@ -238,69 +238,72 @@ export default function App() {
   const [studentSortType, setStudentSortType] = useState<"verified" | "all">("all");
 
   // ----------------------------------------------------
-  // DYNAMIC MASTER DATABASES (React State with localStorage Persistence)
+  // DYNAMIC MASTER DATABASES (React State with server-side synchronization)
   // ----------------------------------------------------
-  const [students, setStudents] = useState<Student[]>(() => {
-    const saved = localStorage.getItem("mutabaah_students");
-    return saved ? JSON.parse(saved) : INITIAL_STUDENTS;
-  });
+  const [students, setStudents] = useState<Student[]>(INITIAL_STUDENTS);
+  const [teachers, setTeachers] = useState<Teacher[]>(INITIAL_TEACHERS);
+  const [parents, setParents] = useState<Parent[]>(INITIAL_PARENTS);
+  const [historyLogs, setHistoryLogs] = useState<LogEntry[]>([]);
+  const [isLoadingDb, setIsLoadingDb] = useState<boolean>(true);
+  const isLoadedRef = React.useRef<boolean>(false);
 
-  const [teachers, setTeachers] = useState<Teacher[]>(() => {
-    const saved = localStorage.getItem("mutabaah_teachers");
-    return saved ? JSON.parse(saved) : INITIAL_TEACHERS;
-  });
-
-  const [parents, setParents] = useState<Parent[]>(() => {
-    const saved = localStorage.getItem("mutabaah_parents");
-    return saved ? JSON.parse(saved) : INITIAL_PARENTS;
-  });
-
-  const [historyLogs, setHistoryLogs] = useState<LogEntry[]>(() => {
-    const saved = localStorage.getItem("mutabaah_history_logs");
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch (e) {
-        console.error("Error parsing history logs", e);
-      }
+  // Sync helper function
+  const syncWithServer = async (payload: {
+    students?: Student[];
+    teachers?: Teacher[];
+    parents?: Parent[];
+    historyLogs?: LogEntry[];
+  }) => {
+    try {
+      await fetch(getApiUrl("/api/db/sync"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+    } catch (e) {
+      console.error("Gagal sinkronisasi ke server:", e);
     }
-    return [
-      {
-        id: "LOG-001",
-        studentId: "STD-003",
-        studentName: "Ahmad Fauzan",
-        date: "2026-07-01",
-        pointsEarned: 104,
-        streakDays: 5,
-        parentApproved: false,
-        teacherApproved: false,
-        shalatWajib: { subuh: true, zuhur: true, ashar: true, maghrib: true, isya: true },
-        shalatSunnah: { tahajud: true, dhuha: true, qabliyahSubuh: true, qabliyahDzuhur: false, badiyahDzuhur: true, badiyahMaghrib: true, badiyahIsya: true },
-        tilawah: { surah: "An-Naba'", ayat: "1-10", juz: "30" },
-        hafalan: { surah: "An-Nazi'at", ayat: "1-5", juz: "30", tipe: "ziyadah" },
-        polaTidur: { sebelum22: true, bangun05: true },
-        birrulWalidain: ["Merapihkan tempat tidur sendiri", "Membantu memasak atau menyiapkan makanan"],
-        details: ["Shalat Wajib: 5 Berjama'ah (+35 Poin)", "Shalat Dhuha (+5 Poin)", "Shalat Tahajud (+15 Poin)", "Shalat Rawatib (+15 Poin)", "Tilawah Al-Qur'an (+10 Poin)", "Hafalan Al-Qur'an (+10 Poin)"]
-      },
-      {
-        id: "LOG-002",
-        studentId: "STD-003",
-        studentName: "Siti Humaira",
-        date: "2026-07-01",
-        pointsEarned: 104,
-        streakDays: 12,
-        parentApproved: true,
-        teacherApproved: false,
-        shalatWajib: { subuh: true, zuhur: true, ashar: true, maghrib: true, isya: true },
-        shalatSunnah: { tahajud: true, dhuha: true, qabliyahSubuh: true, qabliyahDzuhur: true, badiyahDzuhur: true, badiyahMaghrib: true, badiyahIsya: true },
-        tilawah: { surah: "Al-Kahfi", ayat: "1-10", juz: "15" },
-        hafalan: { surah: "An-Naba'", ayat: "1-20", juz: "30", tipe: "murojaah" },
-        polaTidur: { sebelum22: true, bangun05: true },
-        birrulWalidain: ["Membantu membersihkan rumah", "Mencuci piring"],
-        details: ["Shalat Wajib: 5 Berjama'ah (+35 Poin)", "Shalat Dhuha (+5 Poin)", "Shalat Tahajud (+15 Poin)", "Shalat Rawatib (+15 Poin)", "Tilawah Al-Qur'an (+10 Poin)", "Hafalan Al-Qur'an (+10 Poin)"]
-      }
-    ];
-  });
+  };
+
+  // Initial load from server database
+  React.useEffect(() => {
+    fetch(getApiUrl("/api/db"))
+      .then(res => {
+        if (!res.ok) throw new Error("HTTP error " + res.status);
+        return res.json();
+      })
+      .then(data => {
+        if (data.students && Array.isArray(data.students)) setStudents(data.students);
+        if (data.teachers && Array.isArray(data.teachers)) setTeachers(data.teachers);
+        if (data.parents && Array.isArray(data.parents)) setParents(data.parents);
+        if (data.historyLogs && Array.isArray(data.historyLogs)) setHistoryLogs(data.historyLogs);
+        isLoadedRef.current = true;
+        setIsLoadingDb(false);
+      })
+      .catch(err => {
+        console.error("Gagal load dari server, fallback ke localStorage:", err);
+        // Fallback to localStorage cache
+        const localStudents = localStorage.getItem("mutabaah_students");
+        const localTeachers = localStorage.getItem("mutabaah_teachers");
+        const localParents = localStorage.getItem("mutabaah_parents");
+        const localLogs = localStorage.getItem("mutabaah_history_logs");
+        if (localStudents) {
+          try { setStudents(JSON.parse(localStudents)); } catch (e) {}
+        }
+        if (localTeachers) {
+          try { setTeachers(JSON.parse(localTeachers)); } catch (e) {}
+        }
+        if (localParents) {
+          try { setParents(JSON.parse(localParents)); } catch (e) {}
+        }
+        if (localLogs) {
+          try { setHistoryLogs(JSON.parse(localLogs)); } catch (e) {}
+        }
+        
+        isLoadedRef.current = true;
+        setIsLoadingDb(false);
+      });
+  }, []);
 
   // ----------------------------------------------------
   // FORM STATES (To add dynamic records)
@@ -395,22 +398,64 @@ export default function App() {
     return () => clearInterval(timer);
   }, []);
 
-  // Sync databases with localStorage whenever they change
+  // Sync databases with localStorage and Server whenever they change
   React.useEffect(() => {
     localStorage.setItem("mutabaah_students", JSON.stringify(students));
+    if (isLoadedRef.current) {
+      syncWithServer({ students });
+    }
   }, [students]);
 
   React.useEffect(() => {
     localStorage.setItem("mutabaah_teachers", JSON.stringify(teachers));
+    if (isLoadedRef.current) {
+      syncWithServer({ teachers });
+    }
   }, [teachers]);
 
   React.useEffect(() => {
     localStorage.setItem("mutabaah_parents", JSON.stringify(parents));
+    if (isLoadedRef.current) {
+      syncWithServer({ parents });
+    }
   }, [parents]);
 
   React.useEffect(() => {
     localStorage.setItem("mutabaah_history_logs", JSON.stringify(historyLogs));
+    if (isLoadedRef.current) {
+      syncWithServer({ historyLogs });
+    }
   }, [historyLogs]);
+
+  // Periodic polling from server to keep multiple devices perfectly in sync
+  React.useEffect(() => {
+    const interval = setInterval(() => {
+      if (isLoadedRef.current) {
+        fetch(getApiUrl("/api/db"))
+          .then(res => {
+            if (!res.ok) throw new Error("Status " + res.status);
+            return res.json();
+          })
+          .then(data => {
+            if (data.students && JSON.stringify(data.students) !== JSON.stringify(students)) {
+              setStudents(data.students);
+            }
+            if (data.teachers && JSON.stringify(data.teachers) !== JSON.stringify(teachers)) {
+              setTeachers(data.teachers);
+            }
+            if (data.parents && JSON.stringify(data.parents) !== JSON.stringify(parents)) {
+              setParents(data.parents);
+            }
+            if (data.historyLogs && JSON.stringify(data.historyLogs) !== JSON.stringify(historyLogs)) {
+              setHistoryLogs(data.historyLogs);
+            }
+          })
+          .catch(err => console.error("Polling sync error:", err));
+      }
+    }, 10000); // Poll every 10 seconds
+
+    return () => clearInterval(interval);
+  }, [students, teachers, parents, historyLogs]);
 
   const [expandedLogId, setExpandedLogId] = useState<string | null>(null);
 

@@ -186,8 +186,8 @@ export const INITIAL_STUDENTS: Student[] = RAW_STUDENTS.map((s, idx) => {
     parentId: pId,
     teacherId: teacherId,
     nisn: s.nisn,
-    streak: Math.floor(Math.random() * 8), // active streaks
-    points: 100 + Math.floor(Math.random() * 500), // active points
+    streak: 0, // start with 0 streak
+    points: 0, // start with 0 points
     nis: s.nis,
     gender: s.gender,
     musyrif1: s.musyrif1,

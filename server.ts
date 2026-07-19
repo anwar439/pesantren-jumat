@@ -2,11 +2,55 @@ import express from "express";
 import path from "path";
 import dotenv from "dotenv";
 import { GoogleGenAI } from "@google/genai";
+import fs from "fs";
+import { INITIAL_STUDENTS, INITIAL_TEACHERS, INITIAL_PARENTS } from "./src/initialData";
 
 dotenv.config();
 
 const app = express();
 const PORT = 3000;
+
+// ----------------------------------------------------
+// JSON Server-Side Database Persistence Setup
+// ----------------------------------------------------
+const DB_FILE = path.join(process.cwd(), "database.json");
+
+interface DBStructure {
+  students: any[];
+  teachers: any[];
+  parents: any[];
+  historyLogs: any[];
+}
+
+function loadDatabase(): DBStructure {
+  try {
+    if (fs.existsSync(DB_FILE)) {
+      const content = fs.readFileSync(DB_FILE, "utf-8");
+      return JSON.parse(content);
+    }
+  } catch (error) {
+    console.error("Error reading database file, using default structure:", error);
+  }
+
+  // If database file doesn't exist or is corrupt, initialize with clean production data
+  const initialDB: DBStructure = {
+    students: INITIAL_STUDENTS,
+    teachers: INITIAL_TEACHERS,
+    parents: INITIAL_PARENTS,
+    historyLogs: [] // Empty log history, completely ready-to-use
+  };
+
+  saveDatabase(initialDB);
+  return initialDB;
+}
+
+function saveDatabase(data: DBStructure) {
+  try {
+    fs.writeFileSync(DB_FILE, JSON.stringify(data, null, 2), "utf-8");
+  } catch (error) {
+    console.error("Error writing to database file:", error);
+  }
+}
 
 // Middleware to strip subpath prefix (/mutabaah) if present for cPanel deployment
 app.use((req, res, next) => {
@@ -80,6 +124,35 @@ Aturan Penting Evaluasi:
 4. Berikan nasihat/rekomendasi yang membimbing dan penuh kelembutan (contoh: "Mari kita tingkatkan...", "Cobalah untuk...") untuk aspek yang masih kurang konsisten atau terlewatkan.
 5. Sisipkan doa singkat yang tulus di bagian akhir agar siswa selalu dalam bimbingan Allah SWT.
 6. Hasil akhir harus berupa SATU PARAGRAF UTUH tanpa poin-poin (bullet points), tanpa pemformatan markdown tebal/miring ekstrim yang merusak tata letak PDF rapor, dan langsung siap dicetak. Jangan terlalu panjang, maksimal 120 kata.`;
+
+// ----------------------------------------------------
+// Database REST Endpoints for Multi-Device Syncing
+// ----------------------------------------------------
+app.get("/api/db", (req, res) => {
+  try {
+    const db = loadDatabase();
+    res.json(db);
+  } catch (error: any) {
+    res.status(500).json({ error: "Gagal memuat database: " + error.message });
+  }
+});
+
+app.post("/api/db/sync", (req, res) => {
+  try {
+    const db = loadDatabase();
+    const { students, teachers, parents, historyLogs } = req.body;
+
+    if (students && Array.isArray(students)) db.students = students;
+    if (teachers && Array.isArray(teachers)) db.teachers = teachers;
+    if (parents && Array.isArray(parents)) db.parents = parents;
+    if (historyLogs && Array.isArray(historyLogs)) db.historyLogs = historyLogs;
+
+    saveDatabase(db);
+    res.json({ success: true, message: "Sinkronisasi database berhasil dilakukan." });
+  } catch (error: any) {
+    res.status(500).json({ error: "Gagal menyinkronkan database: " + error.message });
+  }
+});
 
 // Endpoint 1: Gemini AI evaluation for Weekly Recap
 app.post("/api/gemini/evaluate", async (req, res) => {
