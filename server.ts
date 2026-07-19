@@ -140,17 +140,115 @@ app.get("/api/db", (req, res) => {
 app.post("/api/db/sync", (req, res) => {
   try {
     const db = loadDatabase();
-    const { students, teachers, parents, historyLogs } = req.body;
+    const { students, teachers, parents, historyLogs, role } = req.body;
 
-    if (students && Array.isArray(students)) db.students = students;
-    if (teachers && Array.isArray(teachers)) db.teachers = teachers;
-    if (parents && Array.isArray(parents)) db.parents = parents;
-    if (historyLogs && Array.isArray(historyLogs)) db.historyLogs = historyLogs;
+    const isAdmin = role === "admin";
+
+    if (isAdmin) {
+      // Admins have full authority to overwrite databases (handling deletions, resets, settings, and bulk imports)
+      if (students && Array.isArray(students)) db.students = students;
+      if (teachers && Array.isArray(teachers)) db.teachers = teachers;
+      if (parents && Array.isArray(parents)) db.parents = parents;
+      if (historyLogs && Array.isArray(historyLogs)) db.historyLogs = historyLogs;
+    } else {
+      // Safe, non-destructive smart merging for students, teachers, and parents (preventing concurrent overwrite races)
+      
+      // 1. Merge students (update mutable fields like points, streak, lastFill, etc.)
+      if (students && Array.isArray(students)) {
+        db.students = db.students.map(s => {
+          const clientS = students.find(cs => cs.id === s.id);
+          if (clientS) {
+            return {
+              ...s,
+              points: clientS.points !== undefined ? clientS.points : s.points,
+              streak: clientS.streak !== undefined ? clientS.streak : s.streak,
+              lastFillDate: clientS.lastFillDate !== undefined ? clientS.lastFillDate : s.lastFillDate,
+              class: clientS.class || s.class,
+              name: clientS.name || s.name
+            };
+          }
+          return s;
+        });
+        
+        // Add new students (if any were added in background/offline)
+        students.forEach(cs => {
+          if (!db.students.some(s => s.id === cs.id)) {
+            db.students.push(cs);
+          }
+        });
+      }
+
+      // 2. Merge history logs (cumulative, never delete any logs)
+      if (historyLogs && Array.isArray(historyLogs)) {
+        const mergedLogs = [...db.historyLogs];
+        historyLogs.forEach(cLog => {
+          const existingIndex = mergedLogs.findIndex(l => l.id === cLog.id);
+          if (existingIndex > -1) {
+            // Merge properties (favoring updated verifications)
+            mergedLogs[existingIndex] = {
+              ...mergedLogs[existingIndex],
+              ...cLog,
+              // Make sure approvals are preserved if either has them true
+              parentApproved: cLog.parentApproved || mergedLogs[existingIndex].parentApproved,
+              teacherApproved: cLog.teacherApproved || mergedLogs[existingIndex].teacherApproved,
+              rejectedByTeacher: cLog.rejectedByTeacher !== undefined ? cLog.rejectedByTeacher : mergedLogs[existingIndex].rejectedByTeacher
+            };
+          } else {
+            // New log submission, insert at the front
+            mergedLogs.unshift(cLog);
+          }
+        });
+        
+        // Sort by date descending
+        db.historyLogs = mergedLogs.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+      }
+
+      // 3. Merge teachers
+      if (teachers && Array.isArray(teachers)) {
+        db.teachers = db.teachers.map(t => {
+          const clientT = teachers.find(ct => ct.id === t.id);
+          return clientT ? { ...t, ...clientT } : t;
+        });
+        teachers.forEach(ct => {
+          if (!db.teachers.some(t => t.id === ct.id)) {
+            db.teachers.push(ct);
+          }
+        });
+      }
+
+      // 4. Merge parents
+      if (parents && Array.isArray(parents)) {
+        db.parents = db.parents.map(p => {
+          const clientP = parents.find(cp => cp.id === p.id);
+          return clientP ? { ...p, ...clientP } : p;
+        });
+        parents.forEach(cp => {
+          if (!db.parents.some(p => p.id === cp.id)) {
+            db.parents.push(cp);
+          }
+        });
+      }
+    }
 
     saveDatabase(db);
-    res.json({ success: true, message: "Sinkronisasi database berhasil dilakukan." });
+    res.json({ success: true, message: "Sinkronisasi database berhasil dilakukan dengan aman.", isMerged: !isAdmin });
   } catch (error: any) {
     res.status(500).json({ error: "Gagal menyinkronkan database: " + error.message });
+  }
+});
+
+app.post("/api/db/reset", (req, res) => {
+  try {
+    const cleanDB: DBStructure = {
+      students: INITIAL_STUDENTS,
+      teachers: INITIAL_TEACHERS,
+      parents: INITIAL_PARENTS,
+      historyLogs: []
+    };
+    saveDatabase(cleanDB);
+    res.json({ success: true, message: "Database berhasil di-reset ke kondisi siap pakai." });
+  } catch (error: any) {
+    res.status(500).json({ error: "Gagal mereset database: " + error.message });
   }
 });
 

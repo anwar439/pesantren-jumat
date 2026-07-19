@@ -178,6 +178,16 @@ const getApiUrl = (endpoint: string) => {
 };
 
 export default function App() {
+  // ----------------------------------------------------
+  // AUTHENTICATION & LOGIN STATE
+  // ----------------------------------------------------
+  const [currentUser, setCurrentUser] = useState<{
+    role: "admin" | "siswa" | "ortu" | "guru";
+    id: string;
+    name: string;
+    nisnOrNip?: string;
+  } | null>(null);
+
   // Modes: "operational" (to operate the app) or "blueprint" (to view database schemas & developer docs)
   const [appMode, setAppMode] = useState<"operational" | "blueprint">("operational");
   
@@ -247,6 +257,29 @@ export default function App() {
   const [isLoadingDb, setIsLoadingDb] = useState<boolean>(true);
   const isLoadedRef = React.useRef<boolean>(false);
 
+  // Keep track of the last synced/fetched server strings to prevent write-back loops
+  const lastServerStudentsRef = React.useRef<string>("");
+  const lastServerTeachersRef = React.useRef<string>("");
+  const lastServerParentsRef = React.useRef<string>("");
+  const lastServerHistoryLogsRef = React.useRef<string>("");
+
+  // Refs to track current state without triggering interval re-creations
+  const studentsRef = React.useRef<Student[]>(students);
+  const teachersRef = React.useRef<Teacher[]>(teachers);
+  const parentsRef = React.useRef<Parent[]>(parents);
+  const historyLogsRef = React.useRef<LogEntry[]>(historyLogs);
+
+  // Concurrency and race-condition tracking refs
+  const pendingSyncsRef = React.useRef<number>(0);
+  const lastWriteTimeRef = React.useRef<number>(0);
+
+  React.useEffect(() => { studentsRef.current = students; }, [students]);
+  React.useEffect(() => { teachersRef.current = teachers; }, [teachers]);
+  React.useEffect(() => { parentsRef.current = parents; }, [parents]);
+  React.useEffect(() => { historyLogsRef.current = historyLogs; }, [historyLogs]);
+
+  const [isOnline, setIsOnline] = useState<boolean>(true);
+
   // Sync helper function
   const syncWithServer = async (payload: {
     students?: Student[];
@@ -273,10 +306,22 @@ export default function App() {
         return res.json();
       })
       .then(data => {
-        if (data.students && Array.isArray(data.students)) setStudents(data.students);
-        if (data.teachers && Array.isArray(data.teachers)) setTeachers(data.teachers);
-        if (data.parents && Array.isArray(data.parents)) setParents(data.parents);
-        if (data.historyLogs && Array.isArray(data.historyLogs)) setHistoryLogs(data.historyLogs);
+        if (data.students && Array.isArray(data.students)) {
+          setStudents(data.students);
+          lastServerStudentsRef.current = JSON.stringify(data.students);
+        }
+        if (data.teachers && Array.isArray(data.teachers)) {
+          setTeachers(data.teachers);
+          lastServerTeachersRef.current = JSON.stringify(data.teachers);
+        }
+        if (data.parents && Array.isArray(data.parents)) {
+          setParents(data.parents);
+          lastServerParentsRef.current = JSON.stringify(data.parents);
+        }
+        if (data.historyLogs && Array.isArray(data.historyLogs)) {
+          setHistoryLogs(data.historyLogs);
+          lastServerHistoryLogsRef.current = JSON.stringify(data.historyLogs);
+        }
         isLoadedRef.current = true;
         setIsLoadingDb(false);
       })
@@ -398,76 +443,120 @@ export default function App() {
     return () => clearInterval(timer);
   }, []);
 
-  // Sync databases with localStorage and Server whenever they change
+  // Unified, race-condition free synchronization with Server & localStorage
   React.useEffect(() => {
-    localStorage.setItem("mutabaah_students", JSON.stringify(students));
-    if (isLoadedRef.current) {
-      syncWithServer({ students });
-    }
-  }, [students]);
+    if (!isLoadedRef.current) return;
 
-  React.useEffect(() => {
-    localStorage.setItem("mutabaah_teachers", JSON.stringify(teachers));
-    if (isLoadedRef.current) {
-      syncWithServer({ teachers });
-    }
-  }, [teachers]);
+    const currentStudentsStr = JSON.stringify(students);
+    const currentTeachersStr = JSON.stringify(teachers);
+    const currentParentsStr = JSON.stringify(parents);
+    const currentLogsStr = JSON.stringify(historyLogs);
 
-  React.useEffect(() => {
-    localStorage.setItem("mutabaah_parents", JSON.stringify(parents));
-    if (isLoadedRef.current) {
-      syncWithServer({ parents });
-    }
-  }, [parents]);
+    // Persist to local storage
+    localStorage.setItem("mutabaah_students", currentStudentsStr);
+    localStorage.setItem("mutabaah_teachers", currentTeachersStr);
+    localStorage.setItem("mutabaah_parents", currentParentsStr);
+    localStorage.setItem("mutabaah_history_logs", currentLogsStr);
 
-  React.useEffect(() => {
-    localStorage.setItem("mutabaah_history_logs", JSON.stringify(historyLogs));
-    if (isLoadedRef.current) {
-      syncWithServer({ historyLogs });
+    const hasStudentsChanged = currentStudentsStr !== lastServerStudentsRef.current;
+    const hasTeachersChanged = currentTeachersStr !== lastServerTeachersRef.current;
+    const hasParentsChanged = currentParentsStr !== lastServerParentsRef.current;
+    const hasLogsChanged = currentLogsStr !== lastServerHistoryLogsRef.current;
+
+    if (hasStudentsChanged || hasTeachersChanged || hasParentsChanged || hasLogsChanged) {
+      lastWriteTimeRef.current = Date.now();
+      pendingSyncsRef.current += 1;
+
+      // Optimistically update server references to avoid infinite bounce back loops
+      if (hasStudentsChanged) lastServerStudentsRef.current = currentStudentsStr;
+      if (hasTeachersChanged) lastServerTeachersRef.current = currentTeachersStr;
+      if (hasParentsChanged) lastServerParentsRef.current = currentParentsStr;
+      if (hasLogsChanged) lastServerHistoryLogsRef.current = currentLogsStr;
+
+      const payload = {
+        students,
+        teachers,
+        parents,
+        historyLogs,
+        role: currentUser?.role || "guest",
+        clientTime: Date.now()
+      };
+
+      fetch(getApiUrl("/api/db/sync"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      })
+      .then(res => res.json())
+      .then(data => {
+        pendingSyncsRef.current = Math.max(0, pendingSyncsRef.current - 1);
+      })
+      .catch(err => {
+        console.error("Gagal sinkronisasi data ke server:", err);
+        pendingSyncsRef.current = Math.max(0, pendingSyncsRef.current - 1);
+      });
     }
-  }, [historyLogs]);
+  }, [students, teachers, parents, historyLogs, currentUser]);
 
   // Periodic polling from server to keep multiple devices perfectly in sync
   React.useEffect(() => {
     const interval = setInterval(() => {
-      if (isLoadedRef.current) {
+      const hasRecentLocalWrite = (Date.now() - lastWriteTimeRef.current) < 2500;
+      const canPoll = isLoadedRef.current && pendingSyncsRef.current === 0 && !hasRecentLocalWrite;
+
+      if (canPoll) {
         fetch(getApiUrl("/api/db"))
           .then(res => {
             if (!res.ok) throw new Error("Status " + res.status);
             return res.json();
           })
           .then(data => {
-            if (data.students && JSON.stringify(data.students) !== JSON.stringify(students)) {
-              setStudents(data.students);
-            }
-            if (data.teachers && JSON.stringify(data.teachers) !== JSON.stringify(teachers)) {
-              setTeachers(data.teachers);
-            }
-            if (data.parents && JSON.stringify(data.parents) !== JSON.stringify(parents)) {
-              setParents(data.parents);
-            }
-            if (data.historyLogs && JSON.stringify(data.historyLogs) !== JSON.stringify(historyLogs)) {
-              setHistoryLogs(data.historyLogs);
+            // Server responded successfully, update online status
+            setIsOnline(true);
+
+            // Double check that we still don't have pending syncs before applying server data
+            if (pendingSyncsRef.current === 0 && (Date.now() - lastWriteTimeRef.current) >= 2500) {
+              if (data.students) {
+                const strVal = JSON.stringify(data.students);
+                if (strVal !== JSON.stringify(studentsRef.current)) {
+                  lastServerStudentsRef.current = strVal;
+                  setStudents(data.students);
+                }
+              }
+              if (data.teachers) {
+                const strVal = JSON.stringify(data.teachers);
+                if (strVal !== JSON.stringify(teachersRef.current)) {
+                  lastServerTeachersRef.current = strVal;
+                  setTeachers(data.teachers);
+                }
+              }
+              if (data.parents) {
+                const strVal = JSON.stringify(data.parents);
+                if (strVal !== JSON.stringify(parentsRef.current)) {
+                  lastServerParentsRef.current = strVal;
+                  setParents(data.parents);
+                }
+              }
+              if (data.historyLogs) {
+                const strVal = JSON.stringify(data.historyLogs);
+                if (strVal !== JSON.stringify(historyLogsRef.current)) {
+                  lastServerHistoryLogsRef.current = strVal;
+                  setHistoryLogs(data.historyLogs);
+                }
+              }
             }
           })
-          .catch(err => console.error("Polling sync error:", err));
+          .catch(err => {
+            // Gracefully handle transient connection errors or server restarts
+            setIsOnline(false);
+          });
       }
-    }, 10000); // Poll every 10 seconds
+    }, 4000); // Poll every 4 seconds for snappy real-time sync across devices
 
     return () => clearInterval(interval);
-  }, [students, teachers, parents, historyLogs]);
+  }, []);
 
   const [expandedLogId, setExpandedLogId] = useState<string | null>(null);
-
-  // ----------------------------------------------------
-  // AUTHENTICATION & LOGIN STATE
-  // ----------------------------------------------------
-  const [currentUser, setCurrentUser] = useState<{
-    role: "admin" | "siswa" | "ortu" | "guru";
-    id: string;
-    name: string;
-    nisnOrNip?: string;
-  } | null>(null);
 
   React.useEffect(() => {
     if (currentUser) {
@@ -1034,6 +1123,72 @@ export default function App() {
   const triggerToast = (msg: string) => {
     setSuccessMsg(msg);
     setTimeout(() => setSuccessMsg(null), 3500);
+  };
+
+  const handleResetDatabaseReadyToUse = async () => {
+    if (confirm("PENTING: Apakah Anda yakin ingin mereset database dan menghapus semua data simulasi (termasuk seluruh riwayat mutabaah)?\nSiswa, guru, dan wali murid akan dikembalikan ke data awal Al Azhar 9 dengan poin dan streak kembali ke 0.")) {
+      try {
+        const response = await fetch(getApiUrl("/api/db/reset"), {
+          method: "POST"
+        });
+        const data = await response.json();
+        if (data.success) {
+          setStudents(INITIAL_STUDENTS);
+          setTeachers(INITIAL_TEACHERS);
+          setParents(INITIAL_PARENTS);
+          setHistoryLogs([]);
+          
+          lastServerStudentsRef.current = JSON.stringify(INITIAL_STUDENTS);
+          lastServerTeachersRef.current = JSON.stringify(INITIAL_TEACHERS);
+          lastServerParentsRef.current = JSON.stringify(INITIAL_PARENTS);
+          lastServerHistoryLogsRef.current = JSON.stringify([]);
+          
+          triggerToast("Seluruh data simulasi berhasil dibersihkan! Aplikasi siap digunakan.");
+        } else {
+          triggerToast("Gagal mereset database: " + data.error);
+        }
+      } catch (error: any) {
+        triggerToast("Gagal terhubung ke server: " + error.message);
+      }
+    }
+  };
+
+  const [isSyncingNow, setIsSyncingNow] = useState<boolean>(false);
+  const handleManualForceSync = async () => {
+    setIsSyncingNow(true);
+    try {
+      const res = await fetch(getApiUrl("/api/db"));
+      if (res.ok) {
+        const data = await res.json();
+        if (data.students) {
+          const strVal = JSON.stringify(data.students);
+          lastServerStudentsRef.current = strVal;
+          setStudents(data.students);
+        }
+        if (data.teachers) {
+          const strVal = JSON.stringify(data.teachers);
+          lastServerTeachersRef.current = strVal;
+          setTeachers(data.teachers);
+        }
+        if (data.parents) {
+          const strVal = JSON.stringify(data.parents);
+          lastServerParentsRef.current = strVal;
+          setParents(data.parents);
+        }
+        if (data.historyLogs) {
+          const strVal = JSON.stringify(data.historyLogs);
+          lastServerHistoryLogsRef.current = strVal;
+          setHistoryLogs(data.historyLogs);
+        }
+        triggerToast("Sinkronisasi instan berhasil dilakukan! Data antar perangkat sinkron.");
+      } else {
+        triggerToast("Gagal sinkronisasi instan dari server.");
+      }
+    } catch (e: any) {
+      triggerToast("Gagal terhubung ke server untuk sinkronisasi.");
+    } finally {
+      setIsSyncingNow(false);
+    }
   };
 
   // ----------------------------------------------------
@@ -2532,6 +2687,58 @@ export default function App() {
                       <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Total Aktivitas</span>
                       <strong className="text-3xl text-blue-950 font-display font-extrabold mt-2 block">{historyLogs.length}</strong>
                       <span className="text-[9px] text-sky-700 font-semibold mt-1">Hari Ini (Simulasi)</span>
+                    </div>
+                  </div>
+
+                  {/* MULTI-DEVICE REALTIME SYNC & SETUP ACTIONS */}
+                  <div className="bg-gradient-to-r from-sky-50 to-blue-50/70 border border-sky-100 rounded-2xl p-4 md:p-5 flex flex-col md:flex-row items-center justify-between gap-4 shadow-sm">
+                    <div className="flex items-center gap-3.5">
+                      <div className="bg-sky-500/10 p-2.5 rounded-xl text-sky-600 shrink-0">
+                        {isSyncingNow ? (
+                          <div className="w-5 h-5 border-2 border-sky-500 border-t-transparent rounded-full animate-spin"></div>
+                        ) : (
+                          <Check className="w-5 h-5 text-sky-600 stroke-[3]" />
+                        )}
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <h4 className="font-bold text-blue-950 text-sm font-display">Sinkronisasi Multi-Perangkat (Laptop, iPad, HP)</h4>
+                          {isOnline ? (
+                            <span className="bg-emerald-100 text-emerald-800 text-[9px] font-bold px-1.5 py-0.5 rounded-full flex items-center gap-1">
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                              Terhubung Aktif
+                            </span>
+                          ) : (
+                            <span className="bg-amber-100 text-amber-800 text-[9px] font-bold px-1.5 py-0.5 rounded-full flex items-center gap-1">
+                              <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse animate-duration-1000"></span>
+                              Menghubungkan Ulang...
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-[11px] text-slate-600 mt-0.5 leading-relaxed">
+                          Sistem disinkronisasikan secara otomatis tiap 4 detik antara Laptop, iPad, dan HP Anda. Perubahan di satu layar langsung tampil di layar lainnya.
+                        </p>
+                      </div>
+                    </div>
+                    
+                    <div className="flex flex-wrap items-center gap-2 w-full md:w-auto shrink-0 justify-end">
+                      <button
+                        onClick={handleManualForceSync}
+                        disabled={isSyncingNow}
+                        className="bg-white hover:bg-slate-50 border border-slate-300 text-slate-700 font-bold text-xs px-3.5 py-2 rounded-xl transition duration-150 flex items-center gap-1.5 shadow-xs w-full sm:w-auto justify-center disabled:opacity-60"
+                      >
+                        {isSyncingNow ? "Mensinkronkan..." : "Sinkronkan Sekarang"}
+                      </button>
+                      
+                      {currentUser?.role === "admin" && (
+                        <button
+                          onClick={handleResetDatabaseReadyToUse}
+                          className="bg-rose-500 hover:bg-rose-600 text-white font-bold text-xs px-3.5 py-2 rounded-xl transition duration-150 flex items-center gap-1.5 shadow-xs w-full sm:w-auto justify-center"
+                          title="Hapus semua data simulasi & kosongkan seluruh mutabaah untuk pemakaian riil"
+                        >
+                          Reset & Bersihkan Data Simulasi
+                        </button>
+                      )}
                     </div>
                   </div>
 
