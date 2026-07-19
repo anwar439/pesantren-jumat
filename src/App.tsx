@@ -238,50 +238,69 @@ export default function App() {
   const [studentSortType, setStudentSortType] = useState<"verified" | "all">("all");
 
   // ----------------------------------------------------
-  // DYNAMIC MASTER DATABASES (React State)
+  // DYNAMIC MASTER DATABASES (React State with localStorage Persistence)
   // ----------------------------------------------------
-  const [students, setStudents] = useState<Student[]>(INITIAL_STUDENTS);
+  const [students, setStudents] = useState<Student[]>(() => {
+    const saved = localStorage.getItem("mutabaah_students");
+    return saved ? JSON.parse(saved) : INITIAL_STUDENTS;
+  });
 
-  const [teachers, setTeachers] = useState<Teacher[]>(INITIAL_TEACHERS);
+  const [teachers, setTeachers] = useState<Teacher[]>(() => {
+    const saved = localStorage.getItem("mutabaah_teachers");
+    return saved ? JSON.parse(saved) : INITIAL_TEACHERS;
+  });
 
-  const [parents, setParents] = useState<Parent[]>(INITIAL_PARENTS);
+  const [parents, setParents] = useState<Parent[]>(() => {
+    const saved = localStorage.getItem("mutabaah_parents");
+    return saved ? JSON.parse(saved) : INITIAL_PARENTS;
+  });
 
-  const [historyLogs, setHistoryLogs] = useState<LogEntry[]>([
-    {
-      id: "LOG-001",
-      studentId: "STD-003",
-      studentName: "Ahmad Fauzan",
-      date: "2026-07-01",
-      pointsEarned: 104,
-      streakDays: 5,
-      parentApproved: false,
-      teacherApproved: false,
-      shalatWajib: { subuh: true, zuhur: true, ashar: true, maghrib: true, isya: true },
-      shalatSunnah: { tahajud: true, dhuha: true, qabliyahSubuh: true, qabliyahDzuhur: false, badiyahDzuhur: true, badiyahMaghrib: true, badiyahIsya: true },
-      tilawah: { surah: "An-Naba'", ayat: "1-10", juz: "30" },
-      hafalan: { surah: "An-Nazi'at", ayat: "1-5", juz: "30", tipe: "ziyadah" },
-      polaTidur: { sebelum22: true, bangun05: true },
-      birrulWalidain: ["Merapihkan tempat tidur sendiri", "Membantu memasak atau menyiapkan makanan"],
-      details: ["Shalat Wajib: 5 Berjama'ah (+35 Poin)", "Shalat Dhuha (+5 Poin)", "Shalat Tahajud (+15 Poin)", "Shalat Rawatib (+15 Poin)", "Tilawah Al-Qur'an (+10 Poin)", "Hafalan Al-Qur'an (+10 Poin)"]
-    },
-    {
-      id: "LOG-002",
-      studentId: "STD-003",
-      studentName: "Siti Humaira",
-      date: "2026-07-01",
-      pointsEarned: 104,
-      streakDays: 12,
-      parentApproved: true,
-      teacherApproved: false,
-      shalatWajib: { subuh: true, zuhur: true, ashar: true, maghrib: true, isya: true },
-      shalatSunnah: { tahajud: true, dhuha: true, qabliyahSubuh: true, qabliyahDzuhur: true, badiyahDzuhur: true, badiyahMaghrib: true, badiyahIsya: true },
-      tilawah: { surah: "Al-Kahfi", ayat: "1-10", juz: "15" },
-      hafalan: { surah: "An-Naba'", ayat: "1-20", juz: "30", tipe: "murojaah" },
-      polaTidur: { sebelum22: true, bangun05: true },
-      birrulWalidain: ["Membantu membersihkan rumah", "Mencuci piring"],
-      details: ["Shalat Wajib: 5 Berjama'ah (+35 Poin)", "Shalat Dhuha (+5 Poin)", "Shalat Tahajud (+15 Poin)", "Shalat Rawatib (+15 Poin)", "Tilawah Al-Qur'an (+10 Poin)", "Hafalan Al-Qur'an (+10 Poin)"]
+  const [historyLogs, setHistoryLogs] = useState<LogEntry[]>(() => {
+    const saved = localStorage.getItem("mutabaah_history_logs");
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        console.error("Error parsing history logs", e);
+      }
     }
-  ]);
+    return [
+      {
+        id: "LOG-001",
+        studentId: "STD-003",
+        studentName: "Ahmad Fauzan",
+        date: "2026-07-01",
+        pointsEarned: 104,
+        streakDays: 5,
+        parentApproved: false,
+        teacherApproved: false,
+        shalatWajib: { subuh: true, zuhur: true, ashar: true, maghrib: true, isya: true },
+        shalatSunnah: { tahajud: true, dhuha: true, qabliyahSubuh: true, qabliyahDzuhur: false, badiyahDzuhur: true, badiyahMaghrib: true, badiyahIsya: true },
+        tilawah: { surah: "An-Naba'", ayat: "1-10", juz: "30" },
+        hafalan: { surah: "An-Nazi'at", ayat: "1-5", juz: "30", tipe: "ziyadah" },
+        polaTidur: { sebelum22: true, bangun05: true },
+        birrulWalidain: ["Merapihkan tempat tidur sendiri", "Membantu memasak atau menyiapkan makanan"],
+        details: ["Shalat Wajib: 5 Berjama'ah (+35 Poin)", "Shalat Dhuha (+5 Poin)", "Shalat Tahajud (+15 Poin)", "Shalat Rawatib (+15 Poin)", "Tilawah Al-Qur'an (+10 Poin)", "Hafalan Al-Qur'an (+10 Poin)"]
+      },
+      {
+        id: "LOG-002",
+        studentId: "STD-003",
+        studentName: "Siti Humaira",
+        date: "2026-07-01",
+        pointsEarned: 104,
+        streakDays: 12,
+        parentApproved: true,
+        teacherApproved: false,
+        shalatWajib: { subuh: true, zuhur: true, ashar: true, maghrib: true, isya: true },
+        shalatSunnah: { tahajud: true, dhuha: true, qabliyahSubuh: true, qabliyahDzuhur: true, badiyahDzuhur: true, badiyahMaghrib: true, badiyahIsya: true },
+        tilawah: { surah: "Al-Kahfi", ayat: "1-10", juz: "15" },
+        hafalan: { surah: "An-Naba'", ayat: "1-20", juz: "30", tipe: "murojaah" },
+        polaTidur: { sebelum22: true, bangun05: true },
+        birrulWalidain: ["Membantu membersihkan rumah", "Mencuci piring"],
+        details: ["Shalat Wajib: 5 Berjama'ah (+35 Poin)", "Shalat Dhuha (+5 Poin)", "Shalat Tahajud (+15 Poin)", "Shalat Rawatib (+15 Poin)", "Tilawah Al-Qur'an (+10 Poin)", "Hafalan Al-Qur'an (+10 Poin)"]
+      }
+    ];
+  });
 
   // ----------------------------------------------------
   // FORM STATES (To add dynamic records)
@@ -375,6 +394,23 @@ export default function App() {
     }, 1000);
     return () => clearInterval(timer);
   }, []);
+
+  // Sync databases with localStorage whenever they change
+  React.useEffect(() => {
+    localStorage.setItem("mutabaah_students", JSON.stringify(students));
+  }, [students]);
+
+  React.useEffect(() => {
+    localStorage.setItem("mutabaah_teachers", JSON.stringify(teachers));
+  }, [teachers]);
+
+  React.useEffect(() => {
+    localStorage.setItem("mutabaah_parents", JSON.stringify(parents));
+  }, [parents]);
+
+  React.useEffect(() => {
+    localStorage.setItem("mutabaah_history_logs", JSON.stringify(historyLogs));
+  }, [historyLogs]);
 
   const [expandedLogId, setExpandedLogId] = useState<string | null>(null);
 
