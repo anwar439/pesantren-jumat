@@ -363,14 +363,13 @@ async function startServer() {
     });
   }
 
-  const portToListen = process.env.PORT || PORT;
   if (process.env.PORT) {
-    app.listen(portToListen, () => {
-      console.log(`Server running under Passenger/cPanel on port/socket: ${portToListen}`);
+    app.listen(process.env.PORT, () => {
+      console.log(`Server running under Passenger/cPanel on port/socket: ${process.env.PORT}`);
     });
   } else {
-    app.listen(portToListen, "0.0.0.0", () => {
-      console.log(`Server running on http://localhost:${portToListen}`);
+    app.listen(PORT, "0.0.0.0", () => {
+      console.log(`Server running on http://localhost:${PORT}`);
     });
   }
 }
