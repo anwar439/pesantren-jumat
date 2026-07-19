@@ -354,7 +354,10 @@ async function startServer() {
     app.use(vite.middlewares);
   } else {
     const distPath = __dirname;
+    // Serve static files both at root and under /mutabaah to support cPanel Passenger environments
+    app.use('/mutabaah', express.static(distPath));
     app.use(express.static(distPath));
+    
     app.get('*', (req, res) => {
       res.sendFile(path.join(distPath, 'index.html'));
     });
