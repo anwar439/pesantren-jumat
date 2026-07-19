@@ -7,6 +7,9 @@ export default defineConfig(() => {
   return {
     base: '/mutabaah/',
     plugins: [react(), tailwindcss()],
+    build: {
+      outDir: 'prod_output',
+    },
     resolve: {
       alias: {
         '@': path.resolve(__dirname, '.'),

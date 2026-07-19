@@ -343,8 +343,7 @@ app.all("/api/*", (req, res) => {
 async function startServer() {
   const isProduction = 
     process.env.NODE_ENV === "production" || 
-    (process.argv[1] && (process.argv[1].includes("server.cjs") || process.argv[1].includes("dist"))) ||
-    (typeof __filename !== "undefined" && (__filename.includes("server.cjs") || __filename.includes("dist")));
+    (typeof __filename !== "undefined" && !__filename.endsWith("server.ts"));
 
   if (!isProduction) {
     const { createServer: createViteServer } = await import("vite");
