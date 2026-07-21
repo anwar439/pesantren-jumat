@@ -177,6 +177,46 @@ const getApiUrl = (endpoint: string) => {
   return isProdSubpath ? `/mutabaah${endpoint}` : endpoint;
 };
 
+const getLocalDateString = (d: Date = new Date()) => {
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+const getMinAllowedDateString = () => {
+  const d = new Date();
+  d.setDate(d.getDate() - 2);
+  return getLocalDateString(d);
+};
+
+const getMaxAllowedDateString = () => {
+  const d = new Date();
+  d.setDate(d.getDate() - 1);
+  return getLocalDateString(d);
+};
+
+const isDateWithinMutabaahLimit = (dateStr: string) => {
+  if (!dateStr) return false;
+  const parts = dateStr.split('-');
+  if (parts.length !== 3) return false;
+  const year = parseInt(parts[0], 10);
+  const month = parseInt(parts[1], 10) - 1;
+  const day = parseInt(parts[2], 10);
+  
+  const inputDate = new Date(year, month, day);
+  inputDate.setHours(0, 0, 0, 0);
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const diffTime = today.getTime() - inputDate.getTime();
+  const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
+
+  // 1 = yesterday, 2 = 2 days ago
+  return diffDays === 1 || diffDays === 2;
+};
+
 export default function App() {
   // ----------------------------------------------------
   // AUTHENTICATION & LOGIN STATE
@@ -432,7 +472,7 @@ export default function App() {
   const [tanggalMutabaah, setTanggalMutabaah] = useState<string>(() => {
     const d = new Date();
     d.setDate(d.getDate() - 1);
-    return d.toISOString().split("T")[0];
+    return getLocalDateString(d);
   });
   const [currentTime, setCurrentTime] = useState<Date>(new Date());
 
@@ -1453,9 +1493,13 @@ export default function App() {
   };
 
   const handleDailySubmit = async () => {
-    const todayStr = new Date().toISOString().split("T")[0];
-    if (tanggalMutabaah === todayStr) {
-      triggerToast("Laporan mutaba'ah untuk hari ini belum bisa diisi (baru bisa diisi besok pagi).");
+    // Rigidly validate date on the JavaScript/engine side to block iPad Safari and any other platform from bypassing the rules
+    if (!isDateWithinMutabaahLimit(tanggalMutabaah)) {
+      triggerToast("Laporan mutaba'ah hanya bisa diisi untuk tanggal Kemarin (H-1) atau 2 hari lalu (H-2). Hari ini belum dibuka.");
+      // Reset the date field to yesterday to guide the user back to a valid path
+      const yesterday = new Date();
+      yesterday.setDate(yesterday.getDate() - 1);
+      setTanggalMutabaah(getLocalDateString(yesterday));
       return;
     }
 
@@ -2562,7 +2606,7 @@ export default function App() {
                     const getPastDateStr = (daysAgo: number) => {
                       const d = new Date();
                       d.setDate(d.getDate() - daysAgo);
-                      return d.toISOString().split("T")[0];
+                      return getLocalDateString(d);
                     };
                     
                     const yesterdayStr = getPastDateStr(1);
@@ -4526,21 +4570,14 @@ export default function App() {
                                 <input 
                                   type="date"
                                   value={tanggalMutabaah}
-                                  min={(() => {
-                                    const d = new Date();
-                                    d.setDate(d.getDate() - 2);
-                                    return d.toISOString().split("T")[0];
-                                  })()}
-                                  max={(() => {
-                                    const d = new Date();
-                                    d.setDate(d.getDate() - 1);
-                                    return d.toISOString().split("T")[0];
-                                  })()}
+                                  min={getMinAllowedDateString()}
+                                  max={getMaxAllowedDateString()}
                                   onChange={(e) => {
                                     const val = e.target.value;
-                                    const todayStr = new Date().toISOString().split("T")[0];
-                                    if (val === todayStr) {
-                                      triggerToast("Laporan mutaba'ah untuk hari ini belum bisa diisi.");
+                                    if (!isDateWithinMutabaahLimit(val)) {
+                                      triggerToast("Laporan mutaba'ah hanya bisa diisi untuk tanggal Kemarin (H-1) atau 2 hari lalu (H-2). Hari ini belum dibuka.");
+                                      // Force reset to yesterday to prevent Safari from bypassing the input limits
+                                      setTanggalMutabaah(getMaxAllowedDateString());
                                       return;
                                     }
                                     setTanggalMutabaah(val);
