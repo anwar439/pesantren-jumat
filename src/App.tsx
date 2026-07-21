@@ -2579,6 +2579,39 @@ export default function App() {
             )}
           </div>
 
+          {/* ACTIVE VERSION & CACHE BUSTER BOX */}
+          <div className="bg-white border border-slate-200 rounded-3xl p-4 text-center flex flex-col gap-2 shadow-sm">
+            <div className="text-[10px] text-slate-500 font-bold flex items-center justify-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+              <span>Versi Aplikasi: v2.5.0 (Terbaru)</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                if (window.navigator && 'serviceWorker' in window.navigator) {
+                  window.navigator.serviceWorker.getRegistrations().then((regs) => {
+                    for (let r of regs) r.unregister();
+                  });
+                }
+                if ('caches' in window) {
+                  caches.keys().then((names) => {
+                    for (let n of names) caches.delete(n);
+                  });
+                }
+                localStorage.clear();
+                sessionStorage.clear();
+                triggerToast("Cache & Storage berhasil dibersihkan! Memuat ulang portal...");
+                setTimeout(() => {
+                  window.location.href = window.location.pathname + '?v=' + Date.now();
+                }, 1000);
+              }}
+              className="w-full text-[9.5px] font-bold py-1.5 bg-slate-100 hover:bg-slate-200 border border-slate-200 rounded-xl text-slate-700 transition cursor-pointer flex items-center justify-center gap-1.5"
+            >
+              <RefreshCw className="w-3.5 h-3.5 text-slate-600" />
+              <span>Bersihkan Cache & Refresh</span>
+            </button>
+          </div>
+
           {/* SCHOOL INFO CARD */}
           <div className="bg-blue-950 text-sky-100 rounded-3xl p-5 flex flex-col gap-3 shadow-md">
             <h4 className="text-xs font-bold text-amber-400 uppercase tracking-wider flex items-center gap-1.5 font-display">
@@ -4579,39 +4612,61 @@ export default function App() {
                               <div>
                                 <label className="block text-slate-700 font-bold mb-1 text-[11px] uppercase tracking-wider flex items-center gap-1">
                                   <Calendar className="w-3.5 h-3.5 text-sky-700" />
-                                  <span>Tanggal Pengisian</span>
+                                  <span>Tanggal Pengisian (Maks H-2)</span>
                                 </label>
-                                <div className="grid grid-cols-2 gap-2 mt-1">
+                                
+                                {/* Standard Date Input with min/max constraint */}
+                                <input
+                                  type="date"
+                                  value={tanggalMutabaah}
+                                  min={getMinAllowedDateString()}
+                                  max={getMaxAllowedDateString()}
+                                  onChange={(e) => {
+                                    setTanggalMutabaah(e.target.value);
+                                  }}
+                                  className={`w-full p-2.5 border rounded-xl bg-white text-xs font-semibold focus:ring-2 focus:ring-sky-500 transition-colors ${
+                                    isDateWithinMutabaahLimit(tanggalMutabaah)
+                                      ? "border-emerald-300 text-emerald-950 bg-emerald-50/10"
+                                      : "border-rose-400 text-rose-950 bg-rose-50/10 focus:ring-rose-500"
+                                  }`}
+                                />
+
+                                {/* Interactive Fast-Click Shortcuts */}
+                                <div className="grid grid-cols-2 gap-1.5 mt-2">
                                   <button
                                     type="button"
                                     onClick={() => setTanggalMutabaah(getMaxAllowedDateString())}
-                                    className={`p-2.5 rounded-xl border-2 text-center transition-all cursor-pointer ${
+                                    className={`py-1 px-2 rounded-lg text-[10px] font-bold border transition cursor-pointer text-center ${
                                       tanggalMutabaah === getMaxAllowedDateString()
-                                        ? "border-sky-500 bg-sky-50 text-sky-950 font-bold shadow-sm"
-                                        : "border-slate-200 bg-white hover:bg-slate-50 text-slate-700"
+                                        ? "bg-sky-600 border-sky-600 text-white"
+                                        : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
                                     }`}
                                   >
-                                    <div className="text-[10px] uppercase font-bold tracking-wider opacity-85">Kemarin (H-1)</div>
-                                    <div className="text-[11.5px] mt-1 font-semibold truncate">
-                                      {formatIndonesianDateLabel(getMaxAllowedDateString())}
-                                    </div>
+                                    Kemarin ({formatIndonesianDateLabel(getMaxAllowedDateString())})
                                   </button>
                                   <button
                                     type="button"
                                     onClick={() => setTanggalMutabaah(getMinAllowedDateString())}
-                                    className={`p-2.5 rounded-xl border-2 text-center transition-all cursor-pointer ${
+                                    className={`py-1 px-2 rounded-lg text-[10px] font-bold border transition cursor-pointer text-center ${
                                       tanggalMutabaah === getMinAllowedDateString()
-                                        ? "border-sky-500 bg-sky-50 text-sky-950 font-bold shadow-sm"
-                                        : "border-slate-200 bg-white hover:bg-slate-50 text-slate-700"
+                                        ? "bg-sky-600 border-sky-600 text-white"
+                                        : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
                                     }`}
                                   >
-                                    <div className="text-[10px] uppercase font-bold tracking-wider opacity-85">2 Hari Lalu (H-2)</div>
-                                    <div className="text-[11.5px] mt-1 font-semibold truncate">
-                                      {formatIndonesianDateLabel(getMinAllowedDateString())}
-                                    </div>
+                                    H-2 ({formatIndonesianDateLabel(getMinAllowedDateString())})
                                   </button>
                                 </div>
-                                <p className="text-[10px] text-slate-500 mt-1.5 leading-tight">Pengisian dibatasi maksimal 2 hari ke belakang. Hari ini belum dibuka.</p>
+
+                                {/* Dynamic Warning Alert Box */}
+                                {!isDateWithinMutabaahLimit(tanggalMutabaah) ? (
+                                  <div className="mt-2.5 p-2 bg-rose-50 border border-rose-200 rounded-xl text-rose-800 text-[10px] font-semibold leading-normal">
+                                    ⚠️ <strong>Tanggal Tidak Diizinkan!</strong> iPad/Browser Anda memilih tanggal {tanggalMutabaah ? formatIndonesianDateLabel(tanggalMutabaah) : "(Kosong)"}. Laporan hanya boleh dikirim untuk <strong>Kemarin (H-1)</strong> atau <strong>2 Hari Lalu (H-2)</strong>. Tombol kirim dinonaktifkan.
+                                  </div>
+                                ) : (
+                                  <div className="mt-2.5 p-2 bg-emerald-50 border border-emerald-150 rounded-xl text-emerald-800 text-[10px] font-medium leading-normal">
+                                    ✓ Tanggal valid untuk pengisian: {formatIndonesianDateLabel(tanggalMutabaah)}.
+                                  </div>
+                                )}
                               </div>
 
                               <div className="flex flex-col justify-center bg-white border border-slate-200 p-2.5 rounded-xl text-center shadow-sm">
@@ -5329,10 +5384,19 @@ export default function App() {
                             ) : (
                               <button
                                 onClick={handleDailySubmit}
-                                disabled={submitting}
-                                className="w-full bg-blue-900 hover:bg-blue-900 text-white font-display font-bold py-3.5 px-4 rounded-xl flex items-center justify-center gap-2 transition shadow-md cursor-pointer text-[13px]"
+                                disabled={submitting || !isDateWithinMutabaahLimit(tanggalMutabaah)}
+                                className={`w-full font-display font-bold py-3.5 px-4 rounded-xl flex items-center justify-center gap-2 transition shadow-md text-[13px] ${
+                                  submitting || !isDateWithinMutabaahLimit(tanggalMutabaah)
+                                    ? "bg-slate-300 text-slate-500 cursor-not-allowed opacity-60 shadow-none border border-slate-200"
+                                    : "bg-blue-900 hover:bg-blue-800 text-white cursor-pointer"
+                                }`}
                               >
-                                {submitting ? "Mengirim ke API server..." : "Kirim Data Mutaba'ah Hari Ini"}
+                                {submitting 
+                                  ? "Mengirim ke API server..." 
+                                  : !isDateWithinMutabaahLimit(tanggalMutabaah) 
+                                    ? "Tombol Kirim Terkunci (Tanggal Tidak Sah)" 
+                                    : "Kirim Data Mutaba'ah Hari Ini"
+                                }
                               </button>
                             )}
                           </div>

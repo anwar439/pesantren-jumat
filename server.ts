@@ -322,9 +322,31 @@ app.post("/api/mutabaah/submit", (req, res) => {
       return res.status(400).json({ error: "Student ID and Date are required." });
     }
 
-    const todayStr = new Date().toISOString().split("T")[0];
-    if (date === todayStr) {
-      return res.status(400).json({ error: "Laporan mutaba'ah untuk hari ini belum bisa diisi (baru bisa diisi besok pagi)." });
+    // Validate that the date is strictly Yesterday (H-1) or 2 Days Ago (H-2)
+    // We calculate dates in the Indonesian timezone (UTC+7, WIB)
+    const getIndonesianDateString = (d: Date) => {
+      const utc = d.getTime() + (d.getTimezoneOffset() * 60000);
+      const wibTime = new Date(utc + (3600000 * 7));
+      const year = wibTime.getFullYear();
+      const month = String(wibTime.getMonth() + 1).padStart(2, '0');
+      const day = String(wibTime.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    };
+
+    const serverNow = new Date();
+    
+    const yesterday = new Date(serverNow);
+    yesterday.setDate(yesterday.getDate() - 1);
+    const yesterdayStr = getIndonesianDateString(yesterday);
+
+    const twoDaysAgo = new Date(serverNow);
+    twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
+    const twoDaysAgoStr = getIndonesianDateString(twoDaysAgo);
+
+    if (date !== yesterdayStr && date !== twoDaysAgoStr) {
+      return res.status(400).json({ 
+        error: `Pengisian ditolak! Tanggal ${date} tidak diizinkan. Laporan mutaba'ah hanya bisa diisi untuk Kemarin (${yesterdayStr}) atau 2 hari lalu (${twoDaysAgoStr}).` 
+      });
     }
 
     // 1. Point System Logic Calculation
@@ -526,10 +548,29 @@ async function startServer() {
   } else {
     const distPath = __dirname;
     // Serve static files both at root and under /mutabaah to support cPanel Passenger environments
-    app.use('/mutabaah', express.static(distPath));
-    app.use(express.static(distPath));
+    app.use('/mutabaah', express.static(distPath, {
+      setHeaders: (res, path) => {
+        if (path.endsWith('index.html')) {
+          res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0');
+          res.setHeader('Pragma', 'no-cache');
+          res.setHeader('Expires', '0');
+        }
+      }
+    }));
+    app.use(express.static(distPath, {
+      setHeaders: (res, path) => {
+        if (path.endsWith('index.html')) {
+          res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0');
+          res.setHeader('Pragma', 'no-cache');
+          res.setHeader('Expires', '0');
+        }
+      }
+    }));
     
     app.get('*', (req, res) => {
+      res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0');
+      res.setHeader('Pragma', 'no-cache');
+      res.setHeader('Expires', '0');
       res.sendFile(path.join(distPath, 'index.html'));
     });
   }
