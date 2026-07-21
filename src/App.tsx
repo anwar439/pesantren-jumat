@@ -217,6 +217,20 @@ const isDateWithinMutabaahLimit = (dateStr: string) => {
   return diffDays === 1 || diffDays === 2;
 };
 
+const formatIndonesianDateLabel = (dateStr: string) => {
+  try {
+    const parts = dateStr.split('-');
+    if (parts.length !== 3) return dateStr;
+    const year = parseInt(parts[0], 10);
+    const month = parseInt(parts[1], 10) - 1;
+    const day = parseInt(parts[2], 10);
+    const d = new Date(year, month, day);
+    return d.toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'short' });
+  } catch (e) {
+    return dateStr;
+  }
+};
+
 export default function App() {
   // ----------------------------------------------------
   // AUTHENTICATION & LOGIN STATE
@@ -4567,24 +4581,37 @@ export default function App() {
                                   <Calendar className="w-3.5 h-3.5 text-sky-700" />
                                   <span>Tanggal Pengisian</span>
                                 </label>
-                                <input 
-                                  type="date"
-                                  value={tanggalMutabaah}
-                                  min={getMinAllowedDateString()}
-                                  max={getMaxAllowedDateString()}
-                                  onChange={(e) => {
-                                    const val = e.target.value;
-                                    if (!isDateWithinMutabaahLimit(val)) {
-                                      triggerToast("Laporan mutaba'ah hanya bisa diisi untuk tanggal Kemarin (H-1) atau 2 hari lalu (H-2). Hari ini belum dibuka.");
-                                      // Force reset to yesterday to prevent Safari from bypassing the input limits
-                                      setTanggalMutabaah(getMaxAllowedDateString());
-                                      return;
-                                    }
-                                    setTanggalMutabaah(val);
-                                  }}
-                                  className="w-full p-2 border border-slate-300 rounded-xl bg-white text-blue-950 font-semibold focus:ring-2 focus:ring-sky-500 text-xs"
-                                />
-                                <p className="text-[10px] text-slate-500 mt-1">Bisa mengisi untuk kemarin (H-1) & 2 hari lalu (H-2). Hari ini belum dibuka.</p>
+                                <div className="grid grid-cols-2 gap-2 mt-1">
+                                  <button
+                                    type="button"
+                                    onClick={() => setTanggalMutabaah(getMaxAllowedDateString())}
+                                    className={`p-2.5 rounded-xl border-2 text-center transition-all cursor-pointer ${
+                                      tanggalMutabaah === getMaxAllowedDateString()
+                                        ? "border-sky-500 bg-sky-50 text-sky-950 font-bold shadow-sm"
+                                        : "border-slate-200 bg-white hover:bg-slate-50 text-slate-700"
+                                    }`}
+                                  >
+                                    <div className="text-[10px] uppercase font-bold tracking-wider opacity-85">Kemarin (H-1)</div>
+                                    <div className="text-[11.5px] mt-1 font-semibold truncate">
+                                      {formatIndonesianDateLabel(getMaxAllowedDateString())}
+                                    </div>
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => setTanggalMutabaah(getMinAllowedDateString())}
+                                    className={`p-2.5 rounded-xl border-2 text-center transition-all cursor-pointer ${
+                                      tanggalMutabaah === getMinAllowedDateString()
+                                        ? "border-sky-500 bg-sky-50 text-sky-950 font-bold shadow-sm"
+                                        : "border-slate-200 bg-white hover:bg-slate-50 text-slate-700"
+                                    }`}
+                                  >
+                                    <div className="text-[10px] uppercase font-bold tracking-wider opacity-85">2 Hari Lalu (H-2)</div>
+                                    <div className="text-[11.5px] mt-1 font-semibold truncate">
+                                      {formatIndonesianDateLabel(getMinAllowedDateString())}
+                                    </div>
+                                  </button>
+                                </div>
+                                <p className="text-[10px] text-slate-500 mt-1.5 leading-tight">Pengisian dibatasi maksimal 2 hari ke belakang. Hari ini belum dibuka.</p>
                               </div>
 
                               <div className="flex flex-col justify-center bg-white border border-slate-200 p-2.5 rounded-xl text-center shadow-sm">
