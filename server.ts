@@ -20,6 +20,17 @@ interface DBStructure {
   teachers: any[];
   parents: any[];
   historyLogs: any[];
+  schoolProfile?: {
+    name?: string;
+    principal?: string;
+    principalNip?: string;
+    address?: string;
+    phone?: string;
+    npsn?: string;
+    yayasan?: string;
+  };
+  customSmpLogo?: string | null;
+  customYayasanLogo?: string | null;
 }
 
 function loadDatabase(): DBStructure {
@@ -37,7 +48,18 @@ function loadDatabase(): DBStructure {
     students: INITIAL_STUDENTS,
     teachers: INITIAL_TEACHERS,
     parents: INITIAL_PARENTS,
-    historyLogs: [] // Empty log history, completely ready-to-use
+    historyLogs: [], // Empty log history, completely ready-to-use
+    schoolProfile: {
+      name: "SMP Islam Al Azhar 9 Bekasi",
+      principal: "H. Amril, S.Ag, M.Pd",
+      principalNip: "1971030519980310",
+      address: "Jl. Kemang Pratama Raya, Bekasi Barat",
+      phone: "021-82410000",
+      npsn: "20220301",
+      yayasan: "YAYASAN WAQAF AL MUHAJIRIEN / YPI AL AZHAR"
+    },
+    customSmpLogo: null,
+    customYayasanLogo: null
   };
 
   saveDatabase(initialDB);
@@ -140,9 +162,23 @@ app.get("/api/db", (req, res) => {
 app.post("/api/db/sync", (req, res) => {
   try {
     const db = loadDatabase();
-    const { students, teachers, parents, historyLogs, role } = req.body;
+    const { students, teachers, parents, historyLogs, schoolProfile, customSmpLogo, customYayasanLogo, role } = req.body;
 
     const isAdmin = role === "admin";
+
+    // Synchronize School Profile and Logos across all devices if provided
+    if (schoolProfile && typeof schoolProfile === "object") {
+      db.schoolProfile = {
+        ...db.schoolProfile,
+        ...schoolProfile
+      };
+    }
+    if (customSmpLogo !== undefined) {
+      db.customSmpLogo = customSmpLogo;
+    }
+    if (customYayasanLogo !== undefined) {
+      db.customYayasanLogo = customYayasanLogo;
+    }
 
     if (isAdmin) {
       // Admins have full authority to overwrite databases (handling deletions, resets, settings, and bulk imports)

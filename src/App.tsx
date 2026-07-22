@@ -316,6 +316,9 @@ export default function App() {
   const lastServerTeachersRef = React.useRef<string>("");
   const lastServerParentsRef = React.useRef<string>("");
   const lastServerHistoryLogsRef = React.useRef<string>("");
+  const lastServerSchoolProfileRef = React.useRef<string>("");
+  const lastServerSmpLogoRef = React.useRef<string | null>("");
+  const lastServerYayasanLogoRef = React.useRef<string | null>("");
 
   // Refs to track current state without triggering interval re-creations
   const studentsRef = React.useRef<Student[]>(students);
@@ -340,6 +343,10 @@ export default function App() {
     teachers?: Teacher[];
     parents?: Parent[];
     historyLogs?: LogEntry[];
+    schoolProfile?: any;
+    customSmpLogo?: string | null;
+    customYayasanLogo?: string | null;
+    role?: string;
   }) => {
     try {
       await fetch(getApiUrl("/api/db/sync"), {
@@ -375,6 +382,29 @@ export default function App() {
         if (data.historyLogs && Array.isArray(data.historyLogs)) {
           setHistoryLogs(data.historyLogs);
           lastServerHistoryLogsRef.current = JSON.stringify(data.historyLogs);
+        }
+        if (data.schoolProfile) {
+          setSchoolProfile(data.schoolProfile);
+          lastServerSchoolProfileRef.current = JSON.stringify(data.schoolProfile);
+          localStorage.setItem("school_profile_name", data.schoolProfile.name || "");
+          localStorage.setItem("school_profile_principal", data.schoolProfile.principal || "");
+          localStorage.setItem("school_profile_principalNip", data.schoolProfile.principalNip || "");
+          localStorage.setItem("school_profile_address", data.schoolProfile.address || "");
+          localStorage.setItem("school_profile_phone", data.schoolProfile.phone || "");
+          localStorage.setItem("school_profile_npsn", data.schoolProfile.npsn || "");
+          localStorage.setItem("school_profile_yayasan", data.schoolProfile.yayasan || "");
+        }
+        if (data.customSmpLogo !== undefined) {
+          setCustomSmpLogo(data.customSmpLogo);
+          lastServerSmpLogoRef.current = data.customSmpLogo;
+          if (data.customSmpLogo) localStorage.setItem("customSmpLogo", data.customSmpLogo);
+          else localStorage.removeItem("customSmpLogo");
+        }
+        if (data.customYayasanLogo !== undefined) {
+          setCustomYayasanLogo(data.customYayasanLogo);
+          lastServerYayasanLogoRef.current = data.customYayasanLogo;
+          if (data.customYayasanLogo) localStorage.setItem("customYayasanLogo", data.customYayasanLogo);
+          else localStorage.removeItem("customYayasanLogo");
         }
         isLoadedRef.current = true;
         setIsLoadingDb(false);
@@ -598,6 +628,32 @@ export default function App() {
                   setHistoryLogs(data.historyLogs);
                 }
               }
+              if (data.schoolProfile) {
+                const strVal = JSON.stringify(data.schoolProfile);
+                if (strVal !== lastServerSchoolProfileRef.current) {
+                  lastServerSchoolProfileRef.current = strVal;
+                  setSchoolProfile(data.schoolProfile);
+                  localStorage.setItem("school_profile_name", data.schoolProfile.name || "");
+                  localStorage.setItem("school_profile_principal", data.schoolProfile.principal || "");
+                  localStorage.setItem("school_profile_principalNip", data.schoolProfile.principalNip || "");
+                  localStorage.setItem("school_profile_address", data.schoolProfile.address || "");
+                  localStorage.setItem("school_profile_phone", data.schoolProfile.phone || "");
+                  localStorage.setItem("school_profile_npsn", data.schoolProfile.npsn || "");
+                  localStorage.setItem("school_profile_yayasan", data.schoolProfile.yayasan || "");
+                }
+              }
+              if (data.customSmpLogo !== undefined && data.customSmpLogo !== lastServerSmpLogoRef.current) {
+                lastServerSmpLogoRef.current = data.customSmpLogo;
+                setCustomSmpLogo(data.customSmpLogo);
+                if (data.customSmpLogo) localStorage.setItem("customSmpLogo", data.customSmpLogo);
+                else localStorage.removeItem("customSmpLogo");
+              }
+              if (data.customYayasanLogo !== undefined && data.customYayasanLogo !== lastServerYayasanLogoRef.current) {
+                lastServerYayasanLogoRef.current = data.customYayasanLogo;
+                setCustomYayasanLogo(data.customYayasanLogo);
+                if (data.customYayasanLogo) localStorage.setItem("customYayasanLogo", data.customYayasanLogo);
+                else localStorage.removeItem("customYayasanLogo");
+              }
             }
           })
           .catch(err => {
@@ -687,7 +743,11 @@ export default function App() {
     localStorage.setItem("school_profile_phone", profileForm.phone);
     localStorage.setItem("school_profile_npsn", profileForm.npsn);
     localStorage.setItem("school_profile_yayasan", profileForm.yayasan);
-    triggerToast("Profil identitas sekolah berhasil diperbarui secara manual!");
+    
+    lastServerSchoolProfileRef.current = JSON.stringify(profileForm);
+    syncWithServer({ schoolProfile: profileForm, role: "admin" });
+
+    triggerToast("Profil identitas sekolah berhasil diperbarui secara online & tersinkronisasi ke seluruh perangkat!");
   };
 
   // ----------------------------------------------------
@@ -701,11 +761,15 @@ export default function App() {
       if (type === "smp") {
         setCustomSmpLogo(base64);
         localStorage.setItem("customSmpLogo", base64);
+        lastServerSmpLogoRef.current = base64;
+        syncWithServer({ customSmpLogo: base64, role: "admin" });
       } else {
         setCustomYayasanLogo(base64);
         localStorage.setItem("customYayasanLogo", base64);
+        lastServerYayasanLogoRef.current = base64;
+        syncWithServer({ customYayasanLogo: base64, role: "admin" });
       }
-      setSuccessMsg(`Logo ${type === "smp" ? "SMP Islam Al Azhar 9" : "Yayasan Waqaf Al Muhajirien"} berhasil diperbarui!`);
+      setSuccessMsg(`Logo ${type === "smp" ? "SMP Islam Al Azhar 9" : "Yayasan Waqaf Al Muhajirien"} berhasil diperbarui & tersinkronisasi!`);
       setTimeout(() => setSuccessMsg(null), 4000);
     } catch (err) {
       console.error("Gagal memproses gambar logo:", err);
@@ -721,11 +785,15 @@ export default function App() {
       if (type === "smp") {
         setCustomSmpLogo(base64);
         localStorage.setItem("customSmpLogo", base64);
+        lastServerSmpLogoRef.current = base64;
+        syncWithServer({ customSmpLogo: base64, role: "admin" });
       } else {
         setCustomYayasanLogo(base64);
         localStorage.setItem("customYayasanLogo", base64);
+        lastServerYayasanLogoRef.current = base64;
+        syncWithServer({ customYayasanLogo: base64, role: "admin" });
       }
-      setSuccessMsg(`Logo ${type === "smp" ? "SMP Islam Al Azhar 9" : "Yayasan Waqaf Al Muhajirien"} berhasil diperbarui!`);
+      setSuccessMsg(`Logo ${type === "smp" ? "SMP Islam Al Azhar 9" : "Yayasan Waqaf Al Muhajirien"} berhasil diperbarui & tersinkronisasi!`);
       setTimeout(() => setSuccessMsg(null), 4000);
     } catch (err) {
       console.error("Gagal memproses gambar logo:", err);
@@ -736,11 +804,15 @@ export default function App() {
     if (type === "smp") {
       setCustomSmpLogo(null);
       localStorage.removeItem("customSmpLogo");
+      lastServerSmpLogoRef.current = null;
+      syncWithServer({ customSmpLogo: null, role: "admin" });
     } else {
       setCustomYayasanLogo(null);
       localStorage.removeItem("customYayasanLogo");
+      lastServerYayasanLogoRef.current = null;
+      syncWithServer({ customYayasanLogo: null, role: "admin" });
     }
-    setSuccessMsg(`Logo ${type === "smp" ? "SMP Islam Al Azhar 9" : "Yayasan Waqaf Al Muhajirien"} dikembalikan ke default.`);
+    setSuccessMsg(`Logo ${type === "smp" ? "SMP Islam Al Azhar 9" : "Yayasan Waqaf Al Muhajirien"} dikembalikan ke default & tersinkronisasi.`);
     setTimeout(() => setSuccessMsg(null), 4000);
   };
 
@@ -1233,6 +1305,29 @@ export default function App() {
           const strVal = JSON.stringify(data.historyLogs);
           lastServerHistoryLogsRef.current = strVal;
           setHistoryLogs(data.historyLogs);
+        }
+        if (data.schoolProfile) {
+          lastServerSchoolProfileRef.current = JSON.stringify(data.schoolProfile);
+          setSchoolProfile(data.schoolProfile);
+          localStorage.setItem("school_profile_name", data.schoolProfile.name || "");
+          localStorage.setItem("school_profile_principal", data.schoolProfile.principal || "");
+          localStorage.setItem("school_profile_principalNip", data.schoolProfile.principalNip || "");
+          localStorage.setItem("school_profile_address", data.schoolProfile.address || "");
+          localStorage.setItem("school_profile_phone", data.schoolProfile.phone || "");
+          localStorage.setItem("school_profile_npsn", data.schoolProfile.npsn || "");
+          localStorage.setItem("school_profile_yayasan", data.schoolProfile.yayasan || "");
+        }
+        if (data.customSmpLogo !== undefined) {
+          lastServerSmpLogoRef.current = data.customSmpLogo;
+          setCustomSmpLogo(data.customSmpLogo);
+          if (data.customSmpLogo) localStorage.setItem("customSmpLogo", data.customSmpLogo);
+          else localStorage.removeItem("customSmpLogo");
+        }
+        if (data.customYayasanLogo !== undefined) {
+          lastServerYayasanLogoRef.current = data.customYayasanLogo;
+          setCustomYayasanLogo(data.customYayasanLogo);
+          if (data.customYayasanLogo) localStorage.setItem("customYayasanLogo", data.customYayasanLogo);
+          else localStorage.removeItem("customYayasanLogo");
         }
         triggerToast("Sinkronisasi instan berhasil dilakukan! Data antar perangkat sinkron.");
       } else {
@@ -5703,7 +5798,7 @@ export default function App() {
                       {/* AI Evaluation result */}
                       <div className="bg-blue-950 text-sky-100 rounded-3xl p-5 flex flex-col gap-3 shadow-md flex-1">
                         <span className="text-[10px] uppercase font-bold tracking-wider text-sky-400 block flex justify-between items-center">
-                          <span className="flex items-center gap-1"><Brain className="w-4 h-4 text-sky-400" /> Hasil Evaluasi Karakter AI Gemini:</span>
+                          <span className="flex items-center gap-1"><Brain className="w-4 h-4 text-sky-400" /> Hasil Evaluasi Karakter:</span>
                           {isSimulatedResponse && (
                             <span className="bg-sky-800 text-white text-[8px] font-bold px-1.5 py-0.5 rounded border border-sky-600 uppercase">SIMULASI</span>
                           )}
@@ -5713,7 +5808,7 @@ export default function App() {
                           {generatingAI ? (
                             <div className="flex flex-col items-center justify-center gap-2 h-full py-4 text-center">
                               <Sparkles className="w-6 h-6 text-amber-300 animate-spin" />
-                              <span className="font-semibold text-sky-300">Gemini-3.5-Flash sedang melakukan kompilasi & menyusun kalimat evaluasi kepengasuhan...</span>
+                              <span className="font-semibold text-sky-300">Sistem sedang melakukan kompilasi & menyusun kalimat evaluasi karakter...</span>
                             </div>
                           ) : (
                             <p className="italic leading-relaxed text-[10.5px] font-sans font-medium text-sky-50">
@@ -5729,7 +5824,7 @@ export default function App() {
                             className={`flex-1 bg-amber-500 hover:bg-amber-600 text-slate-950 font-display font-extrabold py-2.5 px-4 rounded-xl flex items-center justify-center gap-2 transition cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed`}
                           >
                             <Sparkles className="w-4 h-4 text-slate-950" />
-                            <span>Picu Penilaian AI Gemini</span>
+                            <span>Picu Evaluasi Karakter</span>
                           </button>
 
                           <button
@@ -6019,7 +6114,7 @@ export default function App() {
                             <div className="bg-sky-50/60 p-4 border border-sky-200 rounded-xl">
                               <div className="flex items-center gap-1.5 text-blue-950 font-bold mb-2 border-b border-sky-200 pb-1.5">
                                 <Brain className="w-4 h-4 text-sky-800 shrink-0" />
-                                <h5 className="uppercase tracking-wider text-[8px]">II. Evaluasi Karakter Islami (Analisis AI Gemini)</h5>
+                                <h5 className="uppercase tracking-wider text-[8px]">II. Hasil Evaluasi Karakter</h5>
                               </div>
                               <p className="text-slate-700 leading-relaxed text-[10.5px] font-medium font-sans">
                                 "{aiEvaluation}"
