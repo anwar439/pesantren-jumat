@@ -31,6 +31,7 @@ interface DBStructure {
   };
   customSmpLogo?: string | null;
   customYayasanLogo?: string | null;
+  customBirrulList?: string[];
 }
 
 function loadDatabase(): DBStructure {
@@ -59,7 +60,17 @@ function loadDatabase(): DBStructure {
       yayasan: "YAYASAN WAQAF AL MUHAJIRIEN / YPI AL AZHAR"
     },
     customSmpLogo: null,
-    customYayasanLogo: null
+    customYayasanLogo: null,
+    customBirrulList: [
+      "Membantu membersihkan rumah",
+      "Mencuci piring",
+      "Membantu memasak atau menyiapkan makanan",
+      "Merapihkan tempat tidur sendiri",
+      "Menyiram tanaman di halaman rumah",
+      "Mencuci kendaraan orang tua",
+      "Membawakan barang belanjaan",
+      "Membantu mencuci atau menjemur pakaian"
+    ]
   };
 
   saveDatabase(initialDB);
@@ -162,11 +173,11 @@ app.get("/api/db", (req, res) => {
 app.post("/api/db/sync", (req, res) => {
   try {
     const db = loadDatabase();
-    const { students, teachers, parents, historyLogs, schoolProfile, customSmpLogo, customYayasanLogo, role } = req.body;
+    const { students, teachers, parents, historyLogs, schoolProfile, customSmpLogo, customYayasanLogo, customBirrulList, role } = req.body;
 
     const isAdmin = role === "admin";
 
-    // Synchronize School Profile and Logos across all devices if provided
+    // Synchronize School Profile, Logos, and customBirrulList across all devices if provided
     if (schoolProfile && typeof schoolProfile === "object") {
       db.schoolProfile = {
         ...db.schoolProfile,
@@ -178,6 +189,9 @@ app.post("/api/db/sync", (req, res) => {
     }
     if (customYayasanLogo !== undefined) {
       db.customYayasanLogo = customYayasanLogo;
+    }
+    if (customBirrulList !== undefined && Array.isArray(customBirrulList)) {
+      db.customBirrulList = customBirrulList;
     }
 
     if (isAdmin) {
@@ -299,19 +313,47 @@ app.post("/api/gemini/evaluate", async (req, res) => {
 
     const ai = getGeminiClient();
     if (!ai) {
-      // Return simulated responses if key is missing, adhering to high-quality Indonesian content
+      // Generate dynamic personalized response based on exact student data and mutaba'ah stats
+      const firstName = studentName.split(" ")[0] || studentName;
+      const studentClass = weeklyData.studentClass || "Kelas 9";
+      const days = weeklyData.daysLogged || 7;
+      const targetShalat = weeklyData.totalShalatWajibTarget || (days * 5);
       const totalShalat = weeklyData.shalatWajibCount || 0;
       const totalSunnah = weeklyData.shalatSunnahCount || 0;
       const tilawahDays = weeklyData.tilawahDaysCount || 0;
       const birrulDays = weeklyData.birrulWalidainDaysCount || 0;
       const sleepDays = weeklyData.goodSleepDaysCount || 0;
+      const infaqDays = weeklyData.infaqDaysCount || 0;
+      const shalatPct = targetShalat > 0 ? Math.round((totalShalat / targetShalat) * 100) : 0;
 
-      let evaluation = "";
-      if (totalShalat >= 30 && tilawahDays >= 5 && birrulDays >= 5) {
-        evaluation = `Barakallahu fiik Ananda ${studentName}, bapak sangat bersyukur melihat konsistensi ibadahmu minggu ini, terutama shalat lima waktu yang terjaga dengan baik serta tilawah Al-Qur'an dan bakti kepada orang tua yang luar biasa. Teruskanlah pola tidur yang teratur ini agar fisikmu selalu segar untuk beribadah dan belajar di SMP Islam Al Azhar 9 Bekasi. Semoga Allah SWT senantiasa melimpahkan hidayah, kecerdasan, dan keberkahan dalam setiap langkahmu menuju masa depan yang gemilang. Aamiin.`;
+      let evaluation = `Barakallahu fiik Ananda ${studentName} (${studentClass}), `;
+
+      if (shalatPct >= 80) {
+        evaluation += `bapak sangat bersyukur dan bangga melihat konsistensi ibadahmu selama ${days} hari periode ini dengan pencapaian shalat wajib ${totalShalat} dari ${targetShalat} waktu (${shalatPct}%). `;
+      } else if (totalShalat > 0) {
+        evaluation += `terima kasih atas usaha ibadahmu selama ${days} hari ini dengan ${totalShalat} waktu shalat wajib terlaksana. Mari kita tingkatkan lagi kedisiplinan shalat lima waktu tepat waktu. `;
       } else {
-        evaluation = `Alhamdulillah, bapak mengapresiasi usaha Ananda ${studentName} dalam menjalankan ibadah mutaba'ah minggu ini. Namun, bapak perhatikan masih ada beberapa shalat wajib yang terlewatkan dan tilawah Al-Qur'an yang perlu dirutinkan kembali, serta mari perbaiki pola tidur agar tidak larut malam sehingga shalat subuh tidak terlambat. Mari kita kuatkan niat dan tekad untuk menyempurnakan ibadah kita minggu depan sebagai wujud syukur dan bakti kepada orang tua. Semoga Allah SWT memudahkan setiap langkah kebaikanmu, Nak. Aamiin.`;
+        evaluation += `mari kita jadikan periode ini sebagai momentum untuk memulai kembali kebiasaan shalat lima waktu dengan lebih disiplin dan istikamah. `;
       }
+
+      if (totalSunnah > 0 || tilawahDays > 0) {
+        evaluation += `Ananda juga telah melaksanakan ${totalSunnah > 0 ? `${totalSunnah}x shalat sunnah` : ''}${totalSunnah > 0 && tilawahDays > 0 ? ' serta ' : ''}${tilawahDays > 0 ? `${tilawahDays} hari tilawah Al-Qur'an` : ''}. `;
+      }
+
+      if (birrulDays > 0) {
+        evaluation += `Bakti dan adab kepada orang tua sangat luar biasa dengan ${birrulDays} kegiatan membantu di rumah. `;
+      }
+
+      if (infaqDays > 0) {
+        evaluation += `Kedermawanan Ananda ditunjukkan dengan ${infaqDays} hari berinfaq. `;
+      }
+
+      if (sleepDays > 0) {
+        evaluation += `Pola tidur sehat (${sleepDays} hari tepat waktu) patut dipertahankan agar kondisi fisik selalu bugar saat beribadah dan belajar di SMP Islam Al Azhar 9. `;
+      }
+
+      evaluation += `Semoga Allah SWT senantiasa melimpahkan hidayah, kecerdasan, dan keberkahan dalam setiap langkah Ananda ${firstName}. Aamiin.`;
+
       return res.json({ evaluation, isSimulated: true });
     }
 

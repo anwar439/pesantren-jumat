@@ -319,6 +319,7 @@ export default function App() {
   const lastServerSchoolProfileRef = React.useRef<string>("");
   const lastServerSmpLogoRef = React.useRef<string | null>("");
   const lastServerYayasanLogoRef = React.useRef<string | null>("");
+  const lastServerBirrulListRef = React.useRef<string>("");
 
   // Refs to track current state without triggering interval re-creations
   const studentsRef = React.useRef<Student[]>(students);
@@ -346,6 +347,7 @@ export default function App() {
     schoolProfile?: any;
     customSmpLogo?: string | null;
     customYayasanLogo?: string | null;
+    customBirrulList?: string[];
     role?: string;
   }) => {
     try {
@@ -405,6 +407,11 @@ export default function App() {
           lastServerYayasanLogoRef.current = data.customYayasanLogo;
           if (data.customYayasanLogo) localStorage.setItem("customYayasanLogo", data.customYayasanLogo);
           else localStorage.removeItem("customYayasanLogo");
+        }
+        if (data.customBirrulList && Array.isArray(data.customBirrulList)) {
+          setCustomBirrulList(data.customBirrulList);
+          lastServerBirrulListRef.current = JSON.stringify(data.customBirrulList);
+          localStorage.setItem("custom_birrul_list", JSON.stringify(data.customBirrulList));
         }
         isLoadedRef.current = true;
         setIsLoadingDb(false);
@@ -508,6 +515,55 @@ export default function App() {
     sebelum22: true,
     bangun05: true
   });
+  const [customBirrulList, setCustomBirrulList] = useState<string[]>(() => {
+    const saved = localStorage.getItem("custom_birrul_list");
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      } catch (e) {}
+    }
+    return [
+      "Membantu membersihkan rumah",
+      "Mencuci piring",
+      "Membantu memasak atau menyiapkan makanan",
+      "Merapihkan tempat tidur sendiri",
+      "Menyiram tanaman di halaman rumah",
+      "Mencuci kendaraan orang tua",
+      "Membawakan barang belanjaan",
+      "Membantu mencuci atau menjemur pakaian"
+    ];
+  });
+  const [newBirrulItem, setNewBirrulItem] = useState<string>("");
+
+  const handleAddBirrulOption = () => {
+    const trimmed = newBirrulItem.trim();
+    if (!trimmed) return;
+    if (customBirrulList.includes(trimmed)) {
+      triggerToast("Opsi kegiatan tersebut sudah ada!");
+      return;
+    }
+    const updated = [...customBirrulList, trimmed];
+    setCustomBirrulList(updated);
+    setNewBirrulItem("");
+    localStorage.setItem("custom_birrul_list", JSON.stringify(updated));
+    lastServerBirrulListRef.current = JSON.stringify(updated);
+    syncWithServer({ customBirrulList: updated, role: "admin" });
+    triggerToast(`Opsi "${trimmed}" berhasil ditambahkan oleh Admin!`);
+  };
+
+  const handleRemoveBirrulOption = (itemToRemove: string) => {
+    if (confirm(`Apakah Anda yakin ingin menghapus opsi "${itemToRemove}" dari daftar Adab Kepada Orang Tua?`)) {
+      const updated = customBirrulList.filter(item => item !== itemToRemove);
+      setCustomBirrulList(updated);
+      setBirrulActivities(birrulActivities.filter(a => a !== itemToRemove));
+      localStorage.setItem("custom_birrul_list", JSON.stringify(updated));
+      lastServerBirrulListRef.current = JSON.stringify(updated);
+      syncWithServer({ customBirrulList: updated, role: "admin" });
+      triggerToast(`Opsi "${itemToRemove}" berhasil dihapus oleh Admin!`);
+    }
+  };
+
   const [birrulActivities, setBirrulActivities] = useState<string[]>([
     "Merapihkan tempat tidur sendiri",
     "Membantu memasak atau menyiapkan makanan"
@@ -653,6 +709,14 @@ export default function App() {
                 setCustomYayasanLogo(data.customYayasanLogo);
                 if (data.customYayasanLogo) localStorage.setItem("customYayasanLogo", data.customYayasanLogo);
                 else localStorage.removeItem("customYayasanLogo");
+              }
+              if (data.customBirrulList && Array.isArray(data.customBirrulList)) {
+                const strVal = JSON.stringify(data.customBirrulList);
+                if (strVal !== lastServerBirrulListRef.current) {
+                  lastServerBirrulListRef.current = strVal;
+                  setCustomBirrulList(data.customBirrulList);
+                  localStorage.setItem("custom_birrul_list", strVal);
+                }
               }
             }
           })
@@ -1118,7 +1182,7 @@ export default function App() {
       });
       if (match) {
         const cleanNisn = match.nisn ? match.nisn.trim() : "";
-        const isValidPassword = password === cleanNisn || password === "siswa123" || password === "123456";
+        const isValidPassword = password === cleanNisn || password === "siswa123";
         if (isValidPassword) {
           setCurrentUser({
             role: "siswa",
@@ -1148,7 +1212,7 @@ export default function App() {
       if (matchStudent) {
         const cleanSnis = matchStudent.nis ? matchStudent.nis.replace(/[^a-zA-Z0-9]/g, "").toLowerCase() : "";
         const cleanPass = password.replace(/[^a-zA-Z0-9]/g, "").toLowerCase();
-        const isValidPassword = cleanSnis === cleanPass || password === "ortu123" || password === "123456";
+        const isValidPassword = cleanSnis === cleanPass || password === "ortu123";
 
         if (isValidPassword) {
           let parentMatch = parents.find(p => p.studentId === matchStudent.id);
@@ -1189,7 +1253,7 @@ export default function App() {
       const match = teachers.find(t => t.nip && t.nip.trim() === username);
       if (match) {
         const configuredPass = match.password ? match.password.trim() : (match.nip ? match.nip.trim() : "guru123");
-        const isValidPassword = password === configuredPass || password === "guru123" || password === "123456" || (match.nip && match.nip.trim() === password);
+        const isValidPassword = password === configuredPass || (match.nip && match.nip.trim() === password);
         if (isValidPassword) {
           setCurrentUser({
             role: "guru",
@@ -1376,8 +1440,10 @@ export default function App() {
       streak: 0,
       points: 0
     };
-    setStudents([...students, newRecord]);
+    const newStudentsList = [...students, newRecord];
+    setStudents(newStudentsList);
     setFormStudent({ name: "", nisn: "", class: "8A", teacherId: "TCH-007", parentId: "PRT-001", nis: "", gender: "L", musyrif1: "", musyrif2: "" });
+    syncWithServer({ students: newStudentsList, role: currentUser?.role || "admin" });
     triggerToast(`Siswa "${newRecord.name}" berhasil ditambahkan ke Database Kelas ${studentClass}!`);
   };
 
@@ -1395,8 +1461,10 @@ export default function App() {
       classAssigned: formTeacher.classAssigned,
       password: formTeacher.password || formTeacher.nip || "guru123"
     };
-    setTeachers([...teachers, newRecord]);
+    const newTeachersList = [...teachers, newRecord];
+    setTeachers(newTeachersList);
     setFormTeacher({ name: "", nip: "", classAssigned: "8A", password: "" });
+    syncWithServer({ teachers: newTeachersList, role: currentUser?.role || "admin" });
     triggerToast(`Guru Wali Kelas "${newRecord.name}" berhasil didaftarkan!`);
   };
 
@@ -1413,13 +1481,17 @@ export default function App() {
       phone: formParent.phone,
       studentId: formParent.studentId
     };
-    setParents([...parents, newRecord]);
+    const newParentsList = [...parents, newRecord];
+    setParents(newParentsList);
     setFormParent({ name: "", phone: "", studentId: "STD-001" });
+    syncWithServer({ parents: newParentsList, role: currentUser?.role || "admin" });
     triggerToast(`Akun Wali Murid "${newRecord.name}" berhasil dihubungkan ke sistem!`);
   };
 
   const handleUpdateStudent = (updated: Student) => {
-    setStudents(students.map(s => s.id === updated.id ? updated : s));
+    const updatedList = students.map(s => s.id === updated.id ? updated : s);
+    setStudents(updatedList);
+    syncWithServer({ students: updatedList, role: currentUser?.role || "admin" });
     triggerToast(`Data siswa "${updated.name}" berhasil diperbarui.`);
     setEditingStudent(null);
   };
@@ -1427,13 +1499,17 @@ export default function App() {
   const handleDeleteStudent = (id: string) => {
     if (confirm("Apakah Anda yakin ingin menghapus data siswa ini?")) {
       const target = students.find(s => s.id === id);
-      setStudents(students.filter(s => s.id !== id));
+      const updatedList = students.filter(s => s.id !== id);
+      setStudents(updatedList);
+      syncWithServer({ students: updatedList, role: currentUser?.role || "admin" });
       triggerToast(`Data siswa "${target?.name}" berhasil dihapus.`);
     }
   };
 
   const handleUpdateTeacher = (updated: Teacher) => {
-    setTeachers(teachers.map(t => t.id === updated.id ? updated : t));
+    const updatedList = teachers.map(t => t.id === updated.id ? updated : t);
+    setTeachers(updatedList);
+    syncWithServer({ teachers: updatedList, role: currentUser?.role || "admin" });
     triggerToast(`Data guru "${updated.name}" berhasil diperbarui.`);
     setEditingTeacher(null);
   };
@@ -1441,13 +1517,17 @@ export default function App() {
   const handleDeleteTeacher = (id: string) => {
     if (confirm("Apakah Anda yakin ingin menghapus data guru ini?")) {
       const target = teachers.find(t => t.id === id);
-      setTeachers(teachers.filter(t => t.id !== id));
+      const updatedList = teachers.filter(t => t.id !== id);
+      setTeachers(updatedList);
+      syncWithServer({ teachers: updatedList, role: currentUser?.role || "admin" });
       triggerToast(`Data guru "${target?.name}" berhasil dihapus.`);
     }
   };
 
   const handleUpdateParent = (updated: Parent) => {
-    setParents(parents.map(p => p.id === updated.id ? updated : p));
+    const updatedList = parents.map(p => p.id === updated.id ? updated : p);
+    setParents(updatedList);
+    syncWithServer({ parents: updatedList, role: currentUser?.role || "admin" });
     triggerToast(`Data wali murid "${updated.name}" berhasil diperbarui.`);
     setEditingParent(null);
   };
@@ -1455,7 +1535,9 @@ export default function App() {
   const handleDeleteParent = (id: string) => {
     if (confirm("Apakah Anda yakin ingin menghapus data wali murid ini?")) {
       const target = parents.find(p => p.id === id);
-      setParents(parents.filter(p => p.id !== id));
+      const updatedList = parents.filter(p => p.id !== id);
+      setParents(updatedList);
+      syncWithServer({ parents: updatedList, role: currentUser?.role || "admin" });
       triggerToast(`Data wali murid "${target?.name}" berhasil dihapus.`);
     }
   };
@@ -1463,7 +1545,9 @@ export default function App() {
   const handleBulkDeleteStudents = () => {
     if (selectedStudentIds.length === 0) return;
     if (confirm(`Apakah Anda yakin ingin menghapus secara masal ${selectedStudentIds.length} data siswa terpilih?`)) {
-      setStudents(students.filter(s => !selectedStudentIds.includes(s.id)));
+      const updatedList = students.filter(s => !selectedStudentIds.includes(s.id));
+      setStudents(updatedList);
+      syncWithServer({ students: updatedList, role: currentUser?.role || "admin" });
       triggerToast(`Berhasil menghapus masal ${selectedStudentIds.length} data siswa.`);
       setSelectedStudentIds([]);
     }
@@ -1471,7 +1555,9 @@ export default function App() {
 
   const handleBulkResetPointsAll = () => {
     if (confirm("Apakah Anda yakin ingin mereset seluruh poin siswa di database menjadi 0 secara masal?")) {
-      setStudents(prev => prev.map(s => ({ ...s, points: 0 })));
+      const updatedList = students.map(s => ({ ...s, points: 0 }));
+      setStudents(updatedList);
+      syncWithServer({ students: updatedList, role: currentUser?.role || "admin" });
       triggerToast("Seluruh poin siswa berhasil direset menjadi 0.");
     }
   };
@@ -1479,12 +1565,14 @@ export default function App() {
   const handleBulkResetPointsSelected = () => {
     if (selectedStudentIds.length === 0) return;
     if (confirm(`Apakah Anda yakin ingin mereset poin dari ${selectedStudentIds.length} siswa terpilih menjadi 0?`)) {
-      setStudents(prev => prev.map(s => {
+      const updatedList = students.map(s => {
         if (selectedStudentIds.includes(s.id)) {
           return { ...s, points: 0 };
         }
         return s;
-      }));
+      });
+      setStudents(updatedList);
+      syncWithServer({ students: updatedList, role: currentUser?.role || "admin" });
       triggerToast(`Poin ${selectedStudentIds.length} siswa terpilih berhasil direset menjadi 0.`);
       setSelectedStudentIds([]);
     }
@@ -1748,7 +1836,10 @@ export default function App() {
   const handleApproveByTeacher = (logId: string) => {
     let wasUpdated = false;
     let message = "";
-    setHistoryLogs(prev => prev.map(log => {
+    let nextLogs: LogEntry[] = [];
+    let nextStudents: Student[] = students;
+
+    nextLogs = historyLogs.map(log => {
       if (log.id === logId) {
         const nextTeacherApproved = !log.teacherApproved;
         const oldFullyApproved = log.teacherApproved && log.parentApproved;
@@ -1756,12 +1847,13 @@ export default function App() {
         
         if (oldFullyApproved !== nextFullyApproved) {
           const diff = nextFullyApproved ? log.pointsEarned : -log.pointsEarned;
-          setStudents(prevStudents => prevStudents.map(s => {
+          nextStudents = students.map(s => {
             if (s.id === log.studentId) {
               return { ...s, points: Math.max(0, s.points + diff) };
             }
             return s;
-          }));
+          });
+          setStudents(nextStudents);
         }
         
         wasUpdated = true;
@@ -1776,24 +1868,32 @@ export default function App() {
         };
       }
       return log;
-    }));
+    });
+
+    setHistoryLogs(nextLogs);
+
     if (wasUpdated) {
+      syncWithServer({ historyLogs: nextLogs, students: nextStudents, role: currentUser?.role });
       triggerToast(message);
     }
   };
 
   const handleRejectByTeacher = (logId: string, reason: string) => {
     let wasUpdated = false;
-    setHistoryLogs(prev => prev.map(log => {
+    let nextLogs: LogEntry[] = [];
+    let nextStudents: Student[] = students;
+
+    nextLogs = historyLogs.map(log => {
       if (log.id === logId) {
         const oldFullyApproved = log.teacherApproved && log.parentApproved;
         if (oldFullyApproved) {
-          setStudents(prevStudents => prevStudents.map(s => {
+          nextStudents = students.map(s => {
             if (s.id === log.studentId) {
               return { ...s, points: Math.max(0, s.points - log.pointsEarned) };
             }
             return s;
-          }));
+          });
+          setStudents(nextStudents);
         }
 
         wasUpdated = true;
@@ -1805,8 +1905,12 @@ export default function App() {
         };
       }
       return log;
-    }));
+    });
+
+    setHistoryLogs(nextLogs);
+
     if (wasUpdated) {
+      syncWithServer({ historyLogs: nextLogs, students: nextStudents, role: currentUser?.role });
       triggerToast("Laporan Mutaba'ah siswa berhasil ditolak. Siswa sekarang dapat mengisi ulang.");
     }
   };
@@ -1814,7 +1918,10 @@ export default function App() {
   const handleApproveByParent = (logId: string) => {
     let wasUpdated = false;
     let message = "";
-    setHistoryLogs(prev => prev.map(log => {
+    let nextLogs: LogEntry[] = [];
+    let nextStudents: Student[] = students;
+
+    nextLogs = historyLogs.map(log => {
       if (log.id === logId) {
         const nextParentApproved = !log.parentApproved;
         const oldFullyApproved = log.teacherApproved && log.parentApproved;
@@ -1822,12 +1929,13 @@ export default function App() {
         
         if (oldFullyApproved !== nextFullyApproved) {
           const diff = nextFullyApproved ? log.pointsEarned : -log.pointsEarned;
-          setStudents(prevStudents => prevStudents.map(s => {
+          nextStudents = students.map(s => {
             if (s.id === log.studentId) {
               return { ...s, points: Math.max(0, s.points + diff) };
             }
             return s;
-          }));
+          });
+          setStudents(nextStudents);
         }
         
         wasUpdated = true;
@@ -1837,10 +1945,58 @@ export default function App() {
         return { ...log, parentApproved: nextParentApproved };
       }
       return log;
-    }));
+    });
+
+    setHistoryLogs(nextLogs);
+
     if (wasUpdated) {
+      syncWithServer({ historyLogs: nextLogs, students: nextStudents, role: currentUser?.role });
       triggerToast(message);
     }
+  };
+
+  // Dynamic description builder matching student name & mutabaah entries
+  const buildStudentEvaluationText = (studentName: string, studentClass: string, stats: any) => {
+    const firstName = studentName ? studentName.split(" ")[0] : "Ananda";
+    const days = stats?.daysLogged || 1;
+    const targetShalat = days * 5;
+    const shalatDone = stats?.shalatWajibDone || 0;
+    const sunnahDone = (stats?.dhuhaCount || 0) + (stats?.tahajudCount || 0) + (stats?.rawatibCount || 0);
+    const tilawahDays = stats?.tilawahDays || 0;
+    const birrulCount = stats?.birrulCount || 0;
+    const sleepCount = stats?.sleepTimeCount || 0;
+    const infaqCount = stats?.infaqCount || 0;
+    const shalatPct = targetShalat > 0 ? Math.round((shalatDone / targetShalat) * 100) : 0;
+
+    let text = `Barakallahu fiik Ananda ${studentName} (${studentClass}), `;
+
+    if (shalatPct >= 80) {
+      text += `bapak sangat bersyukur dan bangga melihat konsistensi ibadahmu selama ${days} hari periode rekap ini dengan pencapaian shalat wajib ${shalatDone} dari ${targetShalat} waktu (${shalatPct}%). `;
+    } else if (shalatDone > 0) {
+      text += `terima kasih atas ikhtiar ibadahmu selama ${days} hari ini dengan ${shalatDone} waktu shalat wajib terlaksana. Mari kita tingkatkan lagi kedisiplinan shalat lima waktu tepat waktu. `;
+    } else {
+      text += `mari kita jadikan periode ini sebagai momentum untuk memulai kembali kebiasaan shalat lima waktu dengan lebih teratur dan istikamah. `;
+    }
+
+    if (sunnahDone > 0 || tilawahDays > 0) {
+      text += `Ananda juga telah melaksanakan ${sunnahDone > 0 ? `${sunnahDone}x shalat sunnah` : ''}${sunnahDone > 0 && tilawahDays > 0 ? ' serta ' : ''}${tilawahDays > 0 ? `${tilawahDays} hari tilawah Al-Qur'an` : ''}. `;
+    }
+
+    if (birrulCount > 0) {
+      text += `Bakti dan adab kepada orang tua sangat luar biasa dengan ${birrulCount} kegiatan membantu di rumah. `;
+    }
+
+    if (infaqCount > 0) {
+      text += `Kedermawanan Ananda ditunjukkan melalui ${infaqCount} hari berinfaq. `;
+    }
+
+    if (sleepCount > 0) {
+      text += `Pola tidur sehat (${sleepCount} hari tepat waktu) patut dipertahankan agar kondisi fisik selalu bugar saat beribadah dan belajar di SMP Islam Al Azhar 9. `;
+    }
+
+    text += `Semoga Allah SWT senantiasa melimpahkan hidayah, kecerdasan, dan keberkahan dalam setiap langkah Ananda ${firstName}. Aamiin.`;
+
+    return text;
   };
 
   // ----------------------------------------------------
@@ -1848,18 +2004,21 @@ export default function App() {
   // ----------------------------------------------------
   const handleAIEvaluation = async () => {
     setGeneratingAI(true);
-    setAiEvaluation("Wali kelas memicu evaluasi... Menghubungi AI Gemini server-side...");
+    setAiEvaluation("Wali kelas memicu evaluasi... Menghubungi server...");
     const targetStudent = students.find(s => s.id === reportStudentId);
     
     // Build real weekly/recap data summarizing the student's dynamic records
-    const simulatedWeeklyData = {
+    const payloadWeeklyData = {
+      studentClass: targetStudent?.class || "Kelas 9",
+      daysLogged: compiledStats.daysLogged,
+      totalShalatWajibTarget: compiledStats.daysLogged * 5,
       shalatWajibCount: compiledStats.shalatWajibDone, 
       shalatWajibMasjidCount: Math.round(compiledStats.shalatWajibDone * 0.8),
-      shalatSunnahCount: compiledStats.dhuhaCount + compiledStats.tahajudCount,
+      shalatSunnahCount: compiledStats.dhuhaCount + compiledStats.tahajudCount + compiledStats.rawatibCount,
       tilawahDaysCount: compiledStats.tilawahDays,
-      totalPagesRead: compiledStats.tilawahDays * 2,
       goodSleepDaysCount: compiledStats.sleepTimeCount,
       birrulWalidainDaysCount: compiledStats.birrulCount,
+      infaqDaysCount: compiledStats.infaqCount,
       catatanGuru: catatanGuru,
       catatanOrangTua: catatanOrangTua
     };
@@ -1870,27 +2029,30 @@ export default function App() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           studentName: targetStudent?.name || "Siswa Al Azhar",
-          weeklyData: simulatedWeeklyData
+          weeklyData: payloadWeeklyData
         })
       });
       const data = await response.json();
       if (data.evaluation) {
         setAiEvaluation(data.evaluation);
         setIsSimulatedResponse(data.isSimulated);
-        triggerToast("Evaluasi karakter berhasil dianalisis & diisi oleh AI Gemini!");
+        triggerToast("Evaluasi karakter berhasil dianalisis & diisi!");
       } else {
-        setAiEvaluation("Gagal menghasilkan evaluasi AI.");
+        setAiEvaluation(buildStudentEvaluationText(targetStudent?.name || "Siswa", targetStudent?.class || "Kelas 9", compiledStats));
       }
     } catch (err: any) {
       console.error(err);
-      setAiEvaluation("Error menghubungi server: " + err.message);
+      setAiEvaluation(buildStudentEvaluationText(targetStudent?.name || "Siswa", targetStudent?.class || "Kelas 9", compiledStats));
     } finally {
       setGeneratingAI(false);
     }
   };
 
   const printReport = () => {
-    window.print();
+    setShowPrintModal(true);
+    setTimeout(() => {
+      window.print();
+    }, 150);
   };
 
   // ----------------------------------------------------
@@ -2228,6 +2390,17 @@ export default function App() {
 
   const compiledStats = compileStats(activeRecapLogs);
 
+  React.useEffect(() => {
+    if (activeReportStudent) {
+      const evaluationText = buildStudentEvaluationText(
+        activeReportStudent.name,
+        activeReportStudent.class,
+        compiledStats
+      );
+      setAiEvaluation(evaluationText);
+    }
+  }, [reportStudentId, activeReportStudent?.name, compiledStats.daysLogged, compiledStats.shalatWajibDone, compiledStats.birrulCount, compiledStats.tilawahDays]);
+
   return (
     <div className="min-h-screen bg-slate-100 text-slate-800 font-sans flex flex-col antialiased pb-12">
       
@@ -2260,7 +2433,7 @@ export default function App() {
                 Sistem Mutaba'ah Digital Siswa
               </h1>
               <p className="text-sky-100/90 text-xs md:text-sm mt-1 max-w-2xl">
-                Platform pencatatan ibadah harian berbasis gamifikasi, rekapitulasi rapor, dan asisten evaluasi kepengasuhan Islami AI Gemini.
+                Platform pencatatan ibadah harian berbasis gamifikasi, rekapitulasi rapor, dan evaluasi kepengasuhan Islami.
               </p>
             </div>
           </div>
@@ -2424,7 +2597,7 @@ export default function App() {
                   <div>
                     <h3 className="font-display font-bold text-slate-800 text-sm">💡 Apa yang sedang dipreviewkan saat ini?</h3>
                     <p className="text-xs text-slate-600 leading-relaxed mt-1">
-                      Aplikasi ini memiliki <strong>dua visualisasi utama</strong>. Secara default, Anda berada di <strong>Mode Aplikasi Operasional</strong> yang interaktif. Di sini Anda bisa mengelola database master (menambah siswa, guru, orang tua), mengisi checklist harian siswa, menguji sistem poin, dan mencetak laporan rapor yang dianalisis oleh AI. Anda juga dapat beralih ke <strong>Mode Cetak Biru Arsitektur</strong> untuk meninjau skema tabel SQL, Firestore, dan kode pemrograman endpoint API.
+                      Aplikasi ini memiliki <strong>dua visualisasi utama</strong>. Secara default, Anda berada di <strong>Mode Aplikasi Operasional</strong> yang interaktif. Di sini Anda bisa mengelola database master (menambah siswa, guru, orang tua), mengisi checklist harian siswa, menguji sistem poin, dan mencetak laporan rapor. Anda juga dapat beralih ke <strong>Mode Cetak Biru Arsitektur</strong> untuk meninjau skema tabel SQL, Firestore, dan kode pemrograman endpoint API.
                     </p>
                   </div>
                 </div>
@@ -2608,7 +2781,7 @@ export default function App() {
                       >
                         <FileText className="w-4 h-4 text-sky-700 shrink-0" />
                         <div className="flex-1">
-                          <p className="font-semibold text-slate-800 text-xs">Rapor Mingguan & AI</p>
+                          <p className="font-semibold text-slate-800 text-xs">Rapor Mingguan & Evaluasi</p>
                           <span className="text-[9px] text-slate-400 block mt-0.5">Evaluasi & Cetak PDF</span>
                         </div>
                       </button>
@@ -2857,7 +3030,7 @@ export default function App() {
                     <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 flex flex-col justify-between shadow-sm">
                       <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Total Siswa</span>
                       <strong className="text-3xl text-blue-950 font-display font-extrabold mt-2 block">{students.length}</strong>
-                      <span className="text-[9px] text-sky-700 font-semibold mt-1">Aktif Kelas 9</span>
+                      <span className="text-[9px] text-sky-700 font-semibold mt-1">Akun Terhubung</span>
                     </div>
                     <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 flex flex-col justify-between shadow-sm">
                       <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Wali Kelas</span>
@@ -2872,7 +3045,7 @@ export default function App() {
                     <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 flex flex-col justify-between shadow-sm">
                       <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Total Aktivitas</span>
                       <strong className="text-3xl text-blue-950 font-display font-extrabold mt-2 block">{historyLogs.length}</strong>
-                      <span className="text-[9px] text-sky-700 font-semibold mt-1">Hari Ini (Simulasi)</span>
+                      <span className="text-[9px] text-sky-700 font-semibold mt-1">Terdata Harian</span>
                     </div>
                   </div>
 
@@ -2920,9 +3093,9 @@ export default function App() {
                         <button
                           onClick={handleResetDatabaseReadyToUse}
                           className="bg-rose-500 hover:bg-rose-600 text-white font-bold text-xs px-3.5 py-2 rounded-xl transition duration-150 flex items-center gap-1.5 shadow-xs w-full sm:w-auto justify-center"
-                          title="Hapus semua data simulasi & kosongkan seluruh mutabaah untuk pemakaian riil"
+                          title="Hapus riwayat mutabaah & kosongkan data untuk pemakaian riil"
                         >
-                          Reset & Bersihkan Data Simulasi
+                          Reset & Kosongkan Mutaba'ah
                         </button>
                       )}
                     </div>
@@ -2938,7 +3111,7 @@ export default function App() {
                       <ol className="list-decimal list-inside space-y-1 mt-1.5 text-amber-900/90 font-medium">
                         <li>Pergi ke tab <strong>Kelola Data Siswa</strong>, <strong>Kelola Data Guru</strong>, atau <strong>Kelola Wali Murid</strong> untuk meninjau database master dan mencoba menambahkan data riil Anda sendiri.</li>
                         <li>Pergi ke tab <strong>Portal Input Harian</strong>, pilih siswa (termasuk yang baru Anda tambahkan), centang aktivitas ibadahnya, lalu klik Submit untuk memproses data & poin ke server.</li>
-                        <li>Pergi ke tab <strong>Rapor Mingguan & AI</strong> untuk melihat grafik, meminta asisten AI Gemini menulis evaluasi akhlak anak, dan mencetak laporan rapinya!</li>
+                        <li>Pergi ke tab <strong>Rapor Mingguan & Evaluasi</strong> untuk melihat grafik, meminta asisten menulis evaluasi akhlak anak, dan mencetak laporan rapinya!</li>
                       </ol>
                     </div>
                   )}
@@ -3731,7 +3904,7 @@ export default function App() {
                       Kelola Database Wali Kelas (Guru)
                     </h2>
                     <p className="text-xs md:text-sm text-slate-600 mt-1 leading-relaxed">
-                      Sistem pendaftaran guru wali kelas {schoolProfile.name}. Guru berperan memverifikasi mutaba'ah mingguan siswa, mengisi catatan kepribadian, serta memicu asisten AI Gemini.
+                      Sistem pendaftaran guru wali kelas {schoolProfile.name}. Guru berperan memverifikasi mutaba'ah mingguan siswa, mengisi catatan kepribadian, serta memicu evaluasi karakter.
                     </p>
                   </div>
 
@@ -5294,8 +5467,41 @@ export default function App() {
 
                             {/* Kegiatan Membantu Orang Tua (Birrul Walidain) */}
                             <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200/60 flex flex-col gap-3">
-                              <span className="font-bold text-slate-800 block text-[11px] uppercase tracking-wider">🤝 Membantu Orang Tua (Birrul Walidain)</span>
-                              <div className="flex flex-col gap-2 bg-white border border-slate-200 p-3 rounded-xl max-h-[220px] overflow-y-auto">
+                              <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+                                <span className="font-bold text-slate-800 block text-[11px] uppercase tracking-wider">🤝 Membantu Orang Tua (Birrul Walidain)</span>
+                                {currentUser?.role === "admin" && (
+                                  <span className="text-[9px] bg-amber-100 text-amber-800 font-bold px-2 py-0.5 rounded-full border border-amber-200">
+                                    🛡️ Mode Admin: Tambah / Hapus Opsi
+                                  </span>
+                                )}
+                              </div>
+
+                              {currentUser?.role === "admin" && (
+                                <div className="flex gap-2 p-2 bg-amber-50 rounded-xl border border-amber-200">
+                                  <input 
+                                    type="text"
+                                    placeholder="Ketik opsi adab orang tua baru..."
+                                    value={newBirrulItem}
+                                    onChange={(e) => setNewBirrulItem(e.target.value)}
+                                    onKeyDown={(e) => {
+                                      if (e.key === "Enter") {
+                                        e.preventDefault();
+                                        handleAddBirrulOption();
+                                      }
+                                    }}
+                                    className="flex-1 px-3 py-1.5 text-xs border border-amber-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-amber-500"
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={handleAddBirrulOption}
+                                    className="bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold px-3 py-1.5 rounded-lg transition cursor-pointer shrink-0"
+                                  >
+                                    + Tambah
+                                  </button>
+                                </div>
+                              )}
+
+                              <div className="flex flex-col gap-1.5 bg-white border border-slate-200 p-3 rounded-xl max-h-[260px] overflow-y-auto">
                                 <label className={`flex items-center gap-2 p-2 rounded-lg cursor-pointer text-pink-700 transition hover:bg-slate-50 border border-transparent ${birrulActivities.includes("Tidak ada") ? 'bg-pink-50 border-pink-200 font-semibold' : ''}`}>
                                   <input
                                     type="checkbox"
@@ -5313,35 +5519,38 @@ export default function App() {
                                   <span>❌ Tidak ada</span>
                                 </label>
 
-                                {[
-                                  "Membantu membersihkan rumah",
-                                  "Mencuci piring",
-                                  "Membantu memasak atau menyiapkan makanan",
-                                  "Merapihkan tempat tidur sendiri",
-                                  "Menyiram tanaman di halaman rumah",
-                                  "Mencuci kendaraan orang tua",
-                                  "Membawakan barang belanjaan",
-                                  "Membantu mencuci atau menjemur pakaian"
-                                ].map((act) => {
+                                {customBirrulList.map((act) => {
                                   const isChecked = birrulActivities.includes(act);
                                   const isNoneSelected = birrulActivities.includes("Tidak ada");
                                   return (
-                                    <label key={act} className={`flex items-center gap-2 p-2 rounded-lg cursor-pointer text-slate-700 transition hover:bg-slate-50 ${isNoneSelected ? 'opacity-50 cursor-not-allowed' : ''} ${isChecked ? 'bg-sky-50/40 text-blue-950 font-semibold' : ''}`}>
-                                      <input
-                                        type="checkbox"
-                                        disabled={isNoneSelected}
-                                        checked={isChecked}
-                                        onChange={(e) => {
-                                          if (e.target.checked) {
-                                            setBirrulActivities([...birrulActivities.filter(a => a !== "Tidak ada"), act]);
-                                          } else {
-                                            setBirrulActivities(birrulActivities.filter(a => a !== act));
-                                          }
-                                        }}
-                                        className="w-4 h-4 text-sky-600 border-slate-300 rounded cursor-pointer"
-                                      />
-                                      <span>{act}</span>
-                                    </label>
+                                    <div key={act} className="flex items-center justify-between gap-1 hover:bg-slate-50 rounded-lg p-0.5">
+                                      <label className={`flex-1 flex items-center gap-2 p-1.5 rounded-lg cursor-pointer text-slate-700 transition ${isNoneSelected ? 'opacity-50 cursor-not-allowed' : ''} ${isChecked ? 'bg-sky-50/40 text-blue-950 font-semibold' : ''}`}>
+                                        <input
+                                          type="checkbox"
+                                          disabled={isNoneSelected}
+                                          checked={isChecked}
+                                          onChange={(e) => {
+                                            if (e.target.checked) {
+                                              setBirrulActivities([...birrulActivities.filter(a => a !== "Tidak ada"), act]);
+                                            } else {
+                                              setBirrulActivities(birrulActivities.filter(a => a !== act));
+                                            }
+                                          }}
+                                          className="w-4 h-4 text-sky-600 border-slate-300 rounded cursor-pointer shrink-0"
+                                        />
+                                        <span className="text-[11px] leading-snug">{act}</span>
+                                      </label>
+                                      {currentUser?.role === "admin" && (
+                                        <button
+                                          type="button"
+                                          title="Hapus opsi ini (khusus Admin)"
+                                          onClick={() => handleRemoveBirrulOption(act)}
+                                          className="text-rose-500 hover:text-rose-700 hover:bg-rose-50 p-1.5 rounded-lg transition cursor-pointer text-xs shrink-0"
+                                        >
+                                          <Trash2 className="w-3.5 h-3.5" />
+                                        </button>
+                                      )}
+                                    </div>
                                   );
                                 })}
                                 
@@ -5567,10 +5776,10 @@ export default function App() {
                     <div>
                       <h2 className="text-xl md:text-2xl font-display font-bold text-blue-950 flex items-center gap-2.5">
                         <FileText className="w-6 h-6 text-sky-600" />
-                        Rekapitulasi Rapor Mutaba'ah & AI Evaluator
+                        Rekapitulasi Rapor Mutaba'ah & Evaluator
                       </h2>
                       <p className="text-xs md:text-sm text-slate-600 mt-1 leading-relaxed">
-                        Pilih jenis rekapitulasi, saring berdasarkan status verifikasi, dan cetak laporan resmi berformat A4 yang diperkaya dengan analisis kepengasuhan AI Gemini.
+                        Pilih jenis rekapitulasi, saring berdasarkan status verifikasi, dan cetak laporan resmi berformat A4 yang diperkaya dengan analisis kepengasuhan.
                       </p>
                     </div>
                     
@@ -5800,7 +6009,7 @@ export default function App() {
                         <span className="text-[10px] uppercase font-bold tracking-wider text-sky-400 block flex justify-between items-center">
                           <span className="flex items-center gap-1"><Brain className="w-4 h-4 text-sky-400" /> Hasil Evaluasi Karakter:</span>
                           {isSimulatedResponse && (
-                            <span className="bg-sky-800 text-white text-[8px] font-bold px-1.5 py-0.5 rounded border border-sky-600 uppercase">SIMULASI</span>
+                            <span className="bg-sky-800 text-white text-[8px] font-bold px-1.5 py-0.5 rounded border border-sky-600 uppercase">EVALUASI OTOMATIS</span>
                           )}
                         </span>
 
@@ -6781,9 +6990,9 @@ export default function App() {
                 )}
               </div>
 
-              {/* AI Evaluator Output */}
+              {/* Evaluator Output */}
               <div className="bg-sky-50/70 p-3.5 border border-sky-200 rounded-xl mt-4 text-[10px]">
-                <strong className="text-blue-950 font-bold block mb-1">Evaluasi Bimbingan & Karakter Islami (AI Wali Kelas):</strong>
+                <strong className="text-blue-950 font-bold block mb-1">Evaluasi Bimbingan & Karakter Islami (Wali Kelas):</strong>
                 <p className="text-slate-700 italic font-medium leading-relaxed">"{aiEvaluation}"</p>
               </div>
 
