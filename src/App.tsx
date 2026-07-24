@@ -44,10 +44,15 @@ import {
   CalendarDays,
   CalendarRange,
   ChevronUp,
-  RefreshCw
+  RefreshCw,
+  QrCode,
+  Maximize2,
+  ZoomIn
 } from "lucide-react";
 import { INITIAL_STUDENTS, INITIAL_TEACHERS, INITIAL_PARENTS } from "./initialData";
 import { SmpAlAzhar9Logo, YayasanMuhajirienLogo } from "./components/BrandLogos";
+import { OfficialQrisPoster } from "./components/OfficialQrisPoster";
+const qrisImg = "/qris_infaq_smpia9.jpg";
 
 // Types
 interface Student {
@@ -1290,6 +1295,7 @@ export default function App() {
   const [isSimulatedResponse, setIsSimulatedResponse] = useState(false);
   const [showPrintModal, setShowPrintModal] = useState(false);
   const [selectedProofImage, setSelectedProofImage] = useState<string | null>(null);
+  const [showQrisModal, setShowQrisModal] = useState<boolean>(false);
 
   // New multi-mode recap states
   const [recapType, setRecapType] = useState<"daily" | "weekly" | "monthly" | "custom">("weekly");
@@ -5613,61 +5619,79 @@ export default function App() {
                               </div>
 
                               {infaq.hasInfaq && (
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5 mt-1 animate-fadeIn">
-                                  <div>
-                                    <label className="block text-slate-500 text-[10px] font-bold mb-1">Nominal Infaq (Rp)</label>
-                                    <div className="relative">
-                                      <span className="absolute left-3 top-2.5 text-slate-400 font-bold text-xs">Rp</span>
-                                      <input
-                                        type="number"
-                                        placeholder="Contoh: 10000"
-                                        value={infaq.amount}
-                                        onChange={(e) => setInfaq({ ...infaq, amount: e.target.value })}
-                                        className="w-full pl-8 pr-3 py-2 border border-slate-300 rounded-xl bg-white text-slate-800 font-bold focus:outline-none focus:ring-1 focus:ring-sky-500"
-                                      />
+                                <div className="space-y-3.5 mt-1 animate-fadeIn">
+                                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                                    <div>
+                                      <label className="block text-slate-500 text-[10px] font-bold mb-1">Nominal Infaq (Rp)</label>
+                                      <div className="relative">
+                                        <span className="absolute left-3 top-2.5 text-slate-400 font-bold text-xs">Rp</span>
+                                        <input
+                                          type="number"
+                                          placeholder="Contoh: 10000"
+                                          value={infaq.amount}
+                                          onChange={(e) => setInfaq({ ...infaq, amount: e.target.value })}
+                                          className="w-full pl-8 pr-3 py-2 border border-slate-300 rounded-xl bg-white text-slate-800 font-bold focus:outline-none focus:ring-1 focus:ring-sky-500"
+                                        />
+                                      </div>
+                                      <p className="text-[10px] text-slate-400 mt-1">Masukkan angka saja</p>
                                     </div>
-                                    <p className="text-[10px] text-slate-400 mt-1">Masukkan angka saja</p>
+
+                                    <div>
+                                      <label className="block text-slate-500 text-[10px] font-bold mb-1 flex items-center justify-between">
+                                        <span>Upload Bukti Transfer</span>
+                                        <span className="text-[8.5px] bg-sky-100 text-sky-800 px-1 py-0.2 rounded font-mono font-bold uppercase">Auto-Compress</span>
+                                      </label>
+                                      <div className="relative flex items-center justify-center border border-dashed border-slate-300 rounded-xl p-2 bg-white hover:bg-slate-50 transition min-h-[42px]">
+                                        <input
+                                          type="file"
+                                          accept="image/*,application/pdf"
+                                          onChange={handleInfaqFileChange}
+                                          className="absolute inset-0 opacity-0 w-full h-full cursor-pointer"
+                                        />
+                                        <div className="flex items-center gap-1.5 text-slate-500 font-medium">
+                                          <Upload className="w-4 h-4 text-slate-400" />
+                                          <span className="text-[10.5px]">Pilih file bukti (JPG/PNG/PDF)</span>
+                                        </div>
+                                      </div>
+
+                                      {infaq.fileName && (
+                                        <div className="mt-2 p-2 bg-slate-100/85 border border-slate-200 rounded-lg flex items-center justify-between gap-1.5 text-[10px]">
+                                          <div className="flex items-center gap-1.5 shrink truncate">
+                                            {infaq.fileType.includes("pdf") ? (
+                                              <FileText className="w-4 h-4 text-red-500" />
+                                            ) : (
+                                              <div className="w-5 h-5 bg-slate-200 rounded overflow-hidden shrink-0">
+                                                <img src={infaq.fileData} alt="Mini preview" className="w-full h-full object-cover" />
+                                              </div>
+                                            )}
+                                            <span className="truncate font-semibold text-slate-700">{infaq.fileName}</span>
+                                          </div>
+                                          <button
+                                            type="button"
+                                            onClick={() => setInfaq({ ...infaq, fileData: "", fileName: "", fileType: "" })}
+                                            className="text-red-500 hover:text-red-700 font-bold text-[9px] shrink-0"
+                                          >
+                                            Hapus
+                                          </button>
+                                        </div>
+                                      )}
+                                    </div>
                                   </div>
 
-                                  <div>
-                                    <label className="block text-slate-500 text-[10px] font-bold mb-1 flex items-center justify-between">
-                                      <span>Upload Bukti Transfer</span>
-                                      <span className="text-[8.5px] bg-sky-100 text-sky-800 px-1 py-0.2 rounded font-mono font-bold uppercase">Auto-Compress</span>
-                                    </label>
-                                    <div className="relative flex items-center justify-center border border-dashed border-slate-300 rounded-xl p-2 bg-white hover:bg-slate-50 transition min-h-[42px]">
-                                      <input
-                                        type="file"
-                                        accept="image/*,application/pdf"
-                                        onChange={handleInfaqFileChange}
-                                        className="absolute inset-0 opacity-0 w-full h-full cursor-pointer"
-                                      />
-                                      <div className="flex items-center gap-1.5 text-slate-500 font-medium">
-                                        <Upload className="w-4 h-4 text-slate-400" />
-                                        <span className="text-[10.5px]">Pilih file bukti (JPG/PNG/PDF)</span>
-                                      </div>
+                                  {/* QRIS PEMBAYARAN INFAQ CARD - CRISP HIGH-DENSITY VECTOR SCANNER */}
+                                  <div className="bg-gradient-to-r from-rose-50/90 via-amber-50/50 to-sky-50/90 border border-rose-200/90 rounded-2xl p-3 flex flex-col sm:flex-row items-center justify-between gap-3 shadow-xs">
+                                    <div className="w-full sm:flex-1">
+                                      <OfficialQrisPoster mode="compact" onEnlarge={() => setShowQrisModal(true)} />
                                     </div>
 
-                                    {infaq.fileName && (
-                                      <div className="mt-2 p-2 bg-slate-100/85 border border-slate-200 rounded-lg flex items-center justify-between gap-1.5 text-[10px]">
-                                        <div className="flex items-center gap-1.5 shrink truncate">
-                                          {infaq.fileType.includes("pdf") ? (
-                                            <FileText className="w-4 h-4 text-red-500" />
-                                          ) : (
-                                            <div className="w-5 h-5 bg-slate-200 rounded overflow-hidden shrink-0">
-                                              <img src={infaq.fileData} alt="Mini preview" className="w-full h-full object-cover" />
-                                            </div>
-                                          )}
-                                          <span className="truncate font-semibold text-slate-700">{infaq.fileName}</span>
-                                        </div>
-                                        <button
-                                          type="button"
-                                          onClick={() => setInfaq({ ...infaq, fileData: "", fileName: "", fileType: "" })}
-                                          className="text-red-500 hover:text-red-700 font-bold text-[9px] shrink-0"
-                                        >
-                                          Hapus
-                                        </button>
-                                      </div>
-                                    )}
+                                    <button
+                                      type="button"
+                                      onClick={() => setShowQrisModal(true)}
+                                      className="w-full sm:w-auto bg-sky-800 hover:bg-blue-900 text-white font-bold text-[10.5px] px-3.5 py-2.5 rounded-xl transition flex items-center justify-center gap-1.5 shadow-xs shrink-0 cursor-pointer"
+                                    >
+                                      <Maximize2 className="w-3.5 h-3.5" />
+                                      <span>Perbesar Barcode QRIS</span>
+                                    </button>
                                   </div>
                                 </div>
                               )}
@@ -6852,6 +6876,65 @@ export default function App() {
           </div>
           <div className="text-white text-xs mt-3 bg-slate-950/80 px-4 py-2 rounded-full font-medium tracking-wide">
             Bukti Transfer Infaq Harian Siswa
+          </div>
+        </div>
+      )}
+
+      {/* FULLSCREEN ENLARGE MODAL UNTUK QRIS INFAQ SMPIA 9 */}
+      {showQrisModal && (
+        <div 
+          className="fixed inset-0 bg-slate-950/85 backdrop-blur-md z-50 flex flex-col items-center justify-center p-3 sm:p-6 overflow-y-auto animate-fadeIn"
+          onClick={() => setShowQrisModal(false)}
+        >
+          <div className="absolute top-4 right-4 flex items-center gap-2 z-20">
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                const link = document.createElement("a");
+                link.href = qrisImg;
+                link.download = "QRIS_INFAQ_SMPIA9.jpg";
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+              }}
+              className="text-white bg-slate-800 hover:bg-slate-700 p-2.5 rounded-full transition shadow-lg flex items-center justify-center cursor-pointer"
+              title="Download File Gambar QRIS"
+            >
+              <Download className="w-5 h-5 text-white" />
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowQrisModal(false)}
+              className="text-white bg-rose-600 hover:bg-rose-700 p-2.5 rounded-full transition shadow-lg flex items-center justify-center cursor-pointer"
+              title="Tutup Modal QRIS"
+            >
+              <X className="w-5 h-5 text-white" />
+            </button>
+          </div>
+
+          <div 
+            className="w-full max-w-md my-auto flex flex-col items-center gap-3"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <OfficialQrisPoster mode="full" />
+
+            <div className="w-full bg-slate-900/90 border border-slate-700/80 rounded-2xl p-3 text-center text-white text-xs font-medium space-y-1 shadow-2xl">
+              <p className="font-extrabold text-amber-400 flex items-center justify-center gap-1.5 text-xs sm:text-sm">
+                <span>📱 Scan Barcode QRIS di Atas untuk Infaq</span>
+              </p>
+              <p className="text-[11px] text-slate-300 leading-snug">
+                Buka M-Banking (BSI, BCA, Mandiri) atau E-Wallet (GoPay, OVO, Dana, ShopeePay) → Pilih menu Scan QRIS → Arahkan kamera ke layar ini
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setShowQrisModal(false)}
+              className="w-full py-3 bg-white hover:bg-slate-100 text-slate-900 font-extrabold text-xs rounded-2xl transition cursor-pointer shadow-xl border border-slate-200"
+            >
+              Tutup Pratinjau QRIS
+            </button>
           </div>
         </div>
       )}
