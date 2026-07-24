@@ -218,8 +218,29 @@ function loadDatabase() {
     students: INITIAL_STUDENTS,
     teachers: INITIAL_TEACHERS,
     parents: INITIAL_PARENTS,
-    historyLogs: []
+    historyLogs: [],
     // Empty log history, completely ready-to-use
+    schoolProfile: {
+      name: "SMP Islam Al Azhar 9 Bekasi",
+      principal: "H. Amril, S.Ag, M.Pd",
+      principalNip: "1971030519980310",
+      address: "Jl. Kemang Pratama Raya, Bekasi Barat",
+      phone: "021-82410000",
+      npsn: "20220301",
+      yayasan: "YAYASAN WAQAF AL MUHAJIRIEN / YPI AL AZHAR"
+    },
+    customSmpLogo: null,
+    customYayasanLogo: null,
+    customBirrulList: [
+      "Membantu membersihkan rumah",
+      "Mencuci piring",
+      "Membantu memasak atau menyiapkan makanan",
+      "Merapihkan tempat tidur sendiri",
+      "Menyiram tanaman di halaman rumah",
+      "Mencuci kendaraan orang tua",
+      "Membawakan barang belanjaan",
+      "Membantu mencuci atau menjemur pakaian"
+    ]
   };
   saveDatabase(initialDB);
   return initialDB;
@@ -301,15 +322,110 @@ app.get("/api/db", (req, res) => {
 app.post("/api/db/sync", (req, res) => {
   try {
     const db = loadDatabase();
-    const { students, teachers, parents, historyLogs } = req.body;
-    if (students && Array.isArray(students)) db.students = students;
-    if (teachers && Array.isArray(teachers)) db.teachers = teachers;
-    if (parents && Array.isArray(parents)) db.parents = parents;
-    if (historyLogs && Array.isArray(historyLogs)) db.historyLogs = historyLogs;
+    const { students, teachers, parents, historyLogs, schoolProfile, customSmpLogo, customYayasanLogo, customBirrulList, role } = req.body;
+    const isAdmin = role === "admin";
+    if (schoolProfile && typeof schoolProfile === "object") {
+      db.schoolProfile = {
+        ...db.schoolProfile,
+        ...schoolProfile
+      };
+    }
+    if (customSmpLogo !== void 0) {
+      db.customSmpLogo = customSmpLogo;
+    }
+    if (customYayasanLogo !== void 0) {
+      db.customYayasanLogo = customYayasanLogo;
+    }
+    if (customBirrulList !== void 0 && Array.isArray(customBirrulList)) {
+      db.customBirrulList = customBirrulList;
+    }
+    if (isAdmin) {
+      if (students && Array.isArray(students)) db.students = students;
+      if (teachers && Array.isArray(teachers)) db.teachers = teachers;
+      if (parents && Array.isArray(parents)) db.parents = parents;
+      if (historyLogs && Array.isArray(historyLogs)) db.historyLogs = historyLogs;
+    } else {
+      if (students && Array.isArray(students)) {
+        db.students = db.students.map((s) => {
+          const clientS = students.find((cs) => cs.id === s.id);
+          if (clientS) {
+            return {
+              ...s,
+              points: clientS.points !== void 0 ? clientS.points : s.points,
+              streak: clientS.streak !== void 0 ? clientS.streak : s.streak,
+              lastFillDate: clientS.lastFillDate !== void 0 ? clientS.lastFillDate : s.lastFillDate,
+              class: clientS.class || s.class,
+              name: clientS.name || s.name
+            };
+          }
+          return s;
+        });
+        students.forEach((cs) => {
+          if (!db.students.some((s) => s.id === cs.id)) {
+            db.students.push(cs);
+          }
+        });
+      }
+      if (historyLogs && Array.isArray(historyLogs)) {
+        const mergedLogs = [...db.historyLogs];
+        historyLogs.forEach((cLog) => {
+          const existingIndex = mergedLogs.findIndex((l) => l.id === cLog.id);
+          if (existingIndex > -1) {
+            mergedLogs[existingIndex] = {
+              ...mergedLogs[existingIndex],
+              ...cLog,
+              // Make sure approvals are preserved if either has them true
+              parentApproved: cLog.parentApproved || mergedLogs[existingIndex].parentApproved,
+              teacherApproved: cLog.teacherApproved || mergedLogs[existingIndex].teacherApproved,
+              rejectedByTeacher: cLog.rejectedByTeacher !== void 0 ? cLog.rejectedByTeacher : mergedLogs[existingIndex].rejectedByTeacher
+            };
+          } else {
+            mergedLogs.unshift(cLog);
+          }
+        });
+        db.historyLogs = mergedLogs.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+      }
+      if (teachers && Array.isArray(teachers)) {
+        db.teachers = db.teachers.map((t) => {
+          const clientT = teachers.find((ct) => ct.id === t.id);
+          return clientT ? { ...t, ...clientT } : t;
+        });
+        teachers.forEach((ct) => {
+          if (!db.teachers.some((t) => t.id === ct.id)) {
+            db.teachers.push(ct);
+          }
+        });
+      }
+      if (parents && Array.isArray(parents)) {
+        db.parents = db.parents.map((p) => {
+          const clientP = parents.find((cp) => cp.id === p.id);
+          return clientP ? { ...p, ...clientP } : p;
+        });
+        parents.forEach((cp) => {
+          if (!db.parents.some((p) => p.id === cp.id)) {
+            db.parents.push(cp);
+          }
+        });
+      }
+    }
     saveDatabase(db);
-    res.json({ success: true, message: "Sinkronisasi database berhasil dilakukan." });
+    res.json({ success: true, message: "Sinkronisasi database berhasil dilakukan dengan aman.", isMerged: !isAdmin });
   } catch (error) {
     res.status(500).json({ error: "Gagal menyinkronkan database: " + error.message });
+  }
+});
+app.post("/api/db/reset", (req, res) => {
+  try {
+    const cleanDB = {
+      students: INITIAL_STUDENTS,
+      teachers: INITIAL_TEACHERS,
+      parents: INITIAL_PARENTS,
+      historyLogs: []
+    };
+    saveDatabase(cleanDB);
+    res.json({ success: true, message: "Database berhasil di-reset ke kondisi siap pakai." });
+  } catch (error) {
+    res.status(500).json({ error: "Gagal mereset database: " + error.message });
   }
 });
 app.post("/api/gemini/evaluate", async (req, res) => {
@@ -320,17 +436,38 @@ app.post("/api/gemini/evaluate", async (req, res) => {
     }
     const ai = getGeminiClient();
     if (!ai) {
+      const firstName = studentName.split(" ")[0] || studentName;
+      const studentClass = weeklyData.studentClass || "Kelas 9";
+      const days = weeklyData.daysLogged || 7;
+      const targetShalat = weeklyData.totalShalatWajibTarget || days * 5;
       const totalShalat = weeklyData.shalatWajibCount || 0;
       const totalSunnah = weeklyData.shalatSunnahCount || 0;
       const tilawahDays = weeklyData.tilawahDaysCount || 0;
       const birrulDays = weeklyData.birrulWalidainDaysCount || 0;
       const sleepDays = weeklyData.goodSleepDaysCount || 0;
-      let evaluation2 = "";
-      if (totalShalat >= 30 && tilawahDays >= 5 && birrulDays >= 5) {
-        evaluation2 = `Barakallahu fiik Ananda ${studentName}, bapak sangat bersyukur melihat konsistensi ibadahmu minggu ini, terutama shalat lima waktu yang terjaga dengan baik serta tilawah Al-Qur'an dan bakti kepada orang tua yang luar biasa. Teruskanlah pola tidur yang teratur ini agar fisikmu selalu segar untuk beribadah dan belajar di SMP Islam Al Azhar 9 Bekasi. Semoga Allah SWT senantiasa melimpahkan hidayah, kecerdasan, dan keberkahan dalam setiap langkahmu menuju masa depan yang gemilang. Aamiin.`;
+      const infaqDays = weeklyData.infaqDaysCount || 0;
+      const shalatPct = targetShalat > 0 ? Math.round(totalShalat / targetShalat * 100) : 0;
+      let evaluation2 = `Barakallahu fiik Ananda ${studentName} (${studentClass}), `;
+      if (shalatPct >= 80) {
+        evaluation2 += `bapak sangat bersyukur dan bangga melihat konsistensi ibadahmu selama ${days} hari periode ini dengan pencapaian shalat wajib ${totalShalat} dari ${targetShalat} waktu (${shalatPct}%). `;
+      } else if (totalShalat > 0) {
+        evaluation2 += `terima kasih atas usaha ibadahmu selama ${days} hari ini dengan ${totalShalat} waktu shalat wajib terlaksana. Mari kita tingkatkan lagi kedisiplinan shalat lima waktu tepat waktu. `;
       } else {
-        evaluation2 = `Alhamdulillah, bapak mengapresiasi usaha Ananda ${studentName} dalam menjalankan ibadah mutaba'ah minggu ini. Namun, bapak perhatikan masih ada beberapa shalat wajib yang terlewatkan dan tilawah Al-Qur'an yang perlu dirutinkan kembali, serta mari perbaiki pola tidur agar tidak larut malam sehingga shalat subuh tidak terlambat. Mari kita kuatkan niat dan tekad untuk menyempurnakan ibadah kita minggu depan sebagai wujud syukur dan bakti kepada orang tua. Semoga Allah SWT memudahkan setiap langkah kebaikanmu, Nak. Aamiin.`;
+        evaluation2 += `mari kita jadikan periode ini sebagai momentum untuk memulai kembali kebiasaan shalat lima waktu dengan lebih disiplin dan istikamah. `;
       }
+      if (totalSunnah > 0 || tilawahDays > 0) {
+        evaluation2 += `Ananda juga telah melaksanakan ${totalSunnah > 0 ? `${totalSunnah}x shalat sunnah` : ""}${totalSunnah > 0 && tilawahDays > 0 ? " serta " : ""}${tilawahDays > 0 ? `${tilawahDays} hari tilawah Al-Qur'an` : ""}. `;
+      }
+      if (birrulDays > 0) {
+        evaluation2 += `Bakti dan adab kepada orang tua sangat luar biasa dengan ${birrulDays} kegiatan membantu di rumah. `;
+      }
+      if (infaqDays > 0) {
+        evaluation2 += `Kedermawanan Ananda ditunjukkan dengan ${infaqDays} hari berinfaq. `;
+      }
+      if (sleepDays > 0) {
+        evaluation2 += `Pola tidur sehat (${sleepDays} hari tepat waktu) patut dipertahankan agar kondisi fisik selalu bugar saat beribadah dan belajar di SMP Islam Al Azhar 9. `;
+      }
+      evaluation2 += `Semoga Allah SWT senantiasa melimpahkan hidayah, kecerdasan, dan keberkahan dalam setiap langkah Ananda ${firstName}. Aamiin.`;
       return res.json({ evaluation: evaluation2, isSimulated: true });
     }
     const userContent = `Berikut adalah data mutaba'ah mingguan siswa bernama ${studentName}:
@@ -376,9 +513,25 @@ app.post("/api/mutabaah/submit", (req, res) => {
     if (!studentId || !date) {
       return res.status(400).json({ error: "Student ID and Date are required." });
     }
-    const todayStr = (/* @__PURE__ */ new Date()).toISOString().split("T")[0];
-    if (date === todayStr) {
-      return res.status(400).json({ error: "Laporan mutaba'ah untuk hari ini belum bisa diisi (baru bisa diisi besok pagi)." });
+    const getIndonesianDateString = (d) => {
+      const utc = d.getTime() + d.getTimezoneOffset() * 6e4;
+      const wibTime = new Date(utc + 36e5 * 7);
+      const year = wibTime.getFullYear();
+      const month = String(wibTime.getMonth() + 1).padStart(2, "0");
+      const day = String(wibTime.getDate()).padStart(2, "0");
+      return `${year}-${month}-${day}`;
+    };
+    const serverNow = /* @__PURE__ */ new Date();
+    const yesterday = new Date(serverNow);
+    yesterday.setDate(yesterday.getDate() - 1);
+    const yesterdayStr = getIndonesianDateString(yesterday);
+    const twoDaysAgo = new Date(serverNow);
+    twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
+    const twoDaysAgoStr = getIndonesianDateString(twoDaysAgo);
+    if (date !== yesterdayStr && date !== twoDaysAgoStr) {
+      return res.status(400).json({
+        error: `Pengisian ditolak! Tanggal ${date} tidak diizinkan. Laporan mutaba'ah hanya bisa diisi untuk Kemarin (${yesterdayStr}) atau 2 hari lalu (${twoDaysAgoStr}).`
+      });
     }
     let pointsEarned = 0;
     const details = [];
@@ -541,9 +694,28 @@ async function startServer() {
     app.use(vite.middlewares);
   } else {
     const distPath = __dirname;
-    app.use("/mutabaah", import_express.default.static(distPath));
-    app.use(import_express.default.static(distPath));
+    app.use("/mutabaah", import_express.default.static(distPath, {
+      setHeaders: (res, path2) => {
+        if (path2.endsWith("index.html")) {
+          res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0");
+          res.setHeader("Pragma", "no-cache");
+          res.setHeader("Expires", "0");
+        }
+      }
+    }));
+    app.use(import_express.default.static(distPath, {
+      setHeaders: (res, path2) => {
+        if (path2.endsWith("index.html")) {
+          res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0");
+          res.setHeader("Pragma", "no-cache");
+          res.setHeader("Expires", "0");
+        }
+      }
+    }));
     app.get("*", (req, res) => {
+      res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0");
+      res.setHeader("Pragma", "no-cache");
+      res.setHeader("Expires", "0");
       res.sendFile(import_path.default.join(distPath, "index.html"));
     });
   }

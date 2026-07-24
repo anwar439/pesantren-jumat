@@ -2424,24 +2424,39 @@ export default function App() {
           {/* Decorative Pattern Background */}
           <div className="absolute inset-0 opacity-10 bg-[radial-gradient(#f59e0b_1px,transparent_1px)] [background-size:16px_16px] pointer-events-none"></div>
           
-          <div className="flex items-center gap-4 relative z-10">
-            <div className="flex items-center gap-2 bg-white/10 p-2 rounded-2xl border border-white/15 backdrop-blur-sm shrink-0 shadow-md">
-              <SmpAlAzhar9Logo className="w-12 h-12 drop-shadow" customSrc={customSmpLogo} />
-              <YayasanMuhajirienLogo className="w-12 h-12 drop-shadow" customSrc={customYayasanLogo} />
-            </div>
-            <div>
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="bg-sky-800/80 text-amber-300 text-[10px] uppercase font-bold tracking-wider px-2.5 py-0.5 rounded-full border border-sky-700">
-                  {schoolProfile.name}
-                </span>
+          <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 w-full relative z-10">
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-2 bg-white/10 p-2 rounded-2xl border border-white/15 backdrop-blur-sm shrink-0 shadow-md">
+                <SmpAlAzhar9Logo className="w-12 h-12 drop-shadow" customSrc={customSmpLogo} />
+                <YayasanMuhajirienLogo className="w-12 h-12 drop-shadow" customSrc={customYayasanLogo} />
               </div>
-              <h1 id="app-title" className="text-xl md:text-3xl font-display font-bold tracking-tight text-white mt-1.5">
-                Sistem Mutaba'ah Digital Siswa
-              </h1>
-              <p className="text-sky-100/90 text-xs md:text-sm mt-1 max-w-2xl">
-                Platform pencatatan ibadah harian berbasis gamifikasi, rekapitulasi rapor, dan evaluasi kepengasuhan Islami.
-              </p>
+              <div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="bg-sky-800/80 text-amber-300 text-[10px] uppercase font-bold tracking-wider px-2.5 py-0.5 rounded-full border border-sky-700">
+                    {schoolProfile.name}
+                  </span>
+                </div>
+                <h1 id="app-title" className="text-xl md:text-3xl font-display font-bold tracking-tight text-white mt-1.5">
+                  Sistem Mutaba'ah Digital Siswa
+                </h1>
+                <p className="text-sky-100/90 text-xs md:text-sm mt-1 max-w-2xl">
+                  Platform pencatatan ibadah harian berbasis gamifikasi, rekapitulasi rapor, dan evaluasi kepengasuhan Islami.
+                </p>
+              </div>
             </div>
+
+            <button
+              type="button"
+              onClick={() => setShowQrisModal(true)}
+              className="bg-gradient-to-r from-rose-600 to-rose-700 hover:from-rose-500 hover:to-rose-600 text-white font-extrabold text-xs px-4 py-2.5 rounded-2xl border border-rose-400/50 shadow-lg transition flex items-center gap-2 shrink-0 cursor-pointer group hover:scale-105"
+              title="Klik untuk melihat & scan QRIS Infaq SMPIA 9"
+            >
+              <QrCode className="w-4 h-4 text-amber-300 group-hover:rotate-12 transition transform" />
+              <div className="text-left leading-tight">
+                <span className="block text-[10px] text-rose-200 uppercase tracking-wider font-mono">Scan Pembayaran</span>
+                <span className="block text-xs font-black">QRIS INFAQ SMPIA 9</span>
+              </div>
+            </button>
           </div>
         </header>
       </div>
@@ -5618,6 +5633,22 @@ export default function App() {
                                 </div>
                               </div>
 
+                              {/* QRIS PEMBAYARAN INFAQ CARD - ALWAYS VISIBLE FOR IMMEDIATE SCANNING */}
+                              <div className="bg-gradient-to-r from-rose-50/90 via-amber-50/50 to-sky-50/90 border border-rose-200/90 rounded-2xl p-3 flex flex-col sm:flex-row items-center justify-between gap-3 shadow-xs">
+                                <div className="w-full sm:flex-1">
+                                  <OfficialQrisPoster mode="compact" onEnlarge={() => setShowQrisModal(true)} />
+                                </div>
+
+                                <button
+                                  type="button"
+                                  onClick={() => setShowQrisModal(true)}
+                                  className="w-full sm:w-auto bg-sky-800 hover:bg-blue-900 text-white font-bold text-[10.5px] px-3.5 py-2.5 rounded-xl transition flex items-center justify-center gap-1.5 shadow-xs shrink-0 cursor-pointer"
+                                >
+                                  <Maximize2 className="w-3.5 h-3.5" />
+                                  <span>Perbesar Barcode QRIS</span>
+                                </button>
+                              </div>
+
                               {infaq.hasInfaq && (
                                 <div className="space-y-3.5 mt-1 animate-fadeIn">
                                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
@@ -5676,22 +5707,6 @@ export default function App() {
                                         </div>
                                       )}
                                     </div>
-                                  </div>
-
-                                  {/* QRIS PEMBAYARAN INFAQ CARD - CRISP HIGH-DENSITY VECTOR SCANNER */}
-                                  <div className="bg-gradient-to-r from-rose-50/90 via-amber-50/50 to-sky-50/90 border border-rose-200/90 rounded-2xl p-3 flex flex-col sm:flex-row items-center justify-between gap-3 shadow-xs">
-                                    <div className="w-full sm:flex-1">
-                                      <OfficialQrisPoster mode="compact" onEnlarge={() => setShowQrisModal(true)} />
-                                    </div>
-
-                                    <button
-                                      type="button"
-                                      onClick={() => setShowQrisModal(true)}
-                                      className="w-full sm:w-auto bg-sky-800 hover:bg-blue-900 text-white font-bold text-[10.5px] px-3.5 py-2.5 rounded-xl transition flex items-center justify-center gap-1.5 shadow-xs shrink-0 cursor-pointer"
-                                    >
-                                      <Maximize2 className="w-3.5 h-3.5" />
-                                      <span>Perbesar Barcode QRIS</span>
-                                    </button>
                                   </div>
                                 </div>
                               )}
